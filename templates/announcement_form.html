@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block content %}
+<div style="max-width:600px;">
+  <div style="margin-bottom:24px;">
+    <a href="{% url 'notifications' %}" style="font-size:13px;color:var(--muted);">← Back to Notifications</a>
+    <div style="font-family:'DM Serif Display',serif;font-size:24px;margin-top:8px;">Send Announcement</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Broadcast a message to all or specific user groups.</div>
+  </div>
+
+  <div class="card">
+    <form method="POST">
+      {% csrf_token %}
+
+      <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Message</div>
+
+      <div class="form-group">
+        <label class="form-label">Title <span style="color:var(--red);">*</span></label>
+        <input type="text" name="title" class="form-control" placeholder="e.g. Facility Closure Notice" required/>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Message <span style="color:var(--red);">*</span></label>
+        <textarea name="message" class="form-control" style="min-height:120px;" placeholder="Write your announcement here..." required></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Priority</label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          {% for value, label in priority_choices %}
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:8px 14px;border:1.5px solid var(--border);border-radius:8px;transition:all .15s;"
+            onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
+            <input type="radio" name="priority" value="{{ value }}" {% if value == 'normal' %}checked{% endif %} style="accent-color:var(--green);"/>
+            <span style="
+              {% if value == 'urgent' %}color:var(--red);font-weight:600;
+              {% elif value == 'high' %}color:var(--amber);font-weight:600;
+              {% elif value == 'normal' %}color:var(--green);
+              {% else %}color:var(--muted);{% endif %}">
+              {{ label }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin:20px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Recipients</div>
+
+      <div class="form-group">
+        <label class="form-label">Send To</label>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Leave all unchecked to send to everyone.</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          {% for value, label in role_choices %}
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;transition:border-color .15s;"
+            onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
+            <input type="checkbox" name="target_roles" value="{{ value }}" style="width:16px;height:16px;accent-color:var(--green);flex-shrink:0;"/>
+            <div>
+              <div style="font-weight:500;"><span class="role-tag {{ value }}">{{ label }}</span></div>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:20px;">
+        <button type="submit" class="btn btn-primary">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          Send Announcement
+        </button>
+        <a href="{% url 'notifications' %}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

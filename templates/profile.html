@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div style="max-width:600px;">
+  <div style="font-family:'DM Serif Display',serif;font-size:24px;margin-bottom:20px;">My Profile</div>
+
+  <!-- Profile Header -->
+  <div style="background:var(--green);border-radius:14px;padding:24px;margin-bottom:16px;display:flex;align-items:center;gap:18px;">
+    <div style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.2);border:3px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;flex-shrink:0;">
+      {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% if not user.first_name %}{{ user.username|first|upper }}{% endif %}
+    </div>
+    <div>
+      <div style="font-size:18px;font-weight:600;color:#fff;">{{ user.get_full_name|default:user.username }}</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.7);margin-top:3px;">@{{ user.username }}</div>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+        <span style="background:rgba(255,255,255,.2);color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;letter-spacing:.3px;">{{ user.get_role_display }}</span>
+        {% if user.department %}
+        <span style="background:rgba(255,255,255,.15);color:rgba(255,255,255,.9);font-size:11px;padding:3px 10px;border-radius:20px;">{{ user.get_department_display }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Profile -->
+  <div class="card" style="margin-bottom:16px;">
+    <form method="POST">
+      {% csrf_token %}
+
+      <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Personal Information</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-group">
+          <label class="form-label">First Name</label>
+          <input type="text" name="first_name" class="form-control" value="{{ user.first_name }}"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Last Name</label>
+          <input type="text" name="last_name" class="form-control" value="{{ user.last_name }}"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" name="email" class="form-control" value="{{ user.email }}"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone</label>
+          <input type="text" name="phone" class="form-control" value="{{ user.phone }}"/>
+        </div>
+      </div>
+
+      <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin:20px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Change Password</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-group">
+          <label class="form-label">Current Password</label>
+          <input type="password" name="old_password" class="form-control" placeholder="Enter current password"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">New Password</label>
+          <input type="password" name="new_password" class="form-control" placeholder="Leave blank to keep current" minlength="8"/>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:16px;">New password must be at least 8 characters.</div>
+
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </form>
+  </div>
+
+  <!-- Account Info -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">Account Info</div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;">
+        <div><span style="color:var(--muted);">Username:</span> <strong>{{ user.username }}</strong></div>
+        <div><span style="color:var(--muted);">Role:</span> <strong>{{ user.get_role_display }}</strong></div>
+        <div><span style="color:var(--muted);">Joined:</span> {{ user.date_joined|date:"N j, Y" }}</div>
+        <div><span style="color:var(--muted);">Last active:</span> {{ user.last_active|timesince|default:"Unknown" }} ago</div>
+        <div><span style="color:var(--muted);">MFA:</span>
+          {% if user.mfa_enabled %}<span style="color:var(--green);font-weight:600;">Enabled</span>{% else %}<span style="color:var(--muted);">Not enabled</span>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">My Bookings</div>
+      {% for booking in recent_bookings %}
+      <div style="padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;">
+        <div style="font-weight:500;">{{ booking.facility.name }}</div>
+        <div style="font-size:12px;color:var(--muted);">{{ booking.date }} &nbsp;<span class="status {{ booking.status }}" style="font-size:10px;">{{ booking.get_status_display }}</span></div>
+      </div>
+      {% empty %}
+      <div style="color:var(--muted);font-size:13px;">No bookings yet.</div>
+      {% endfor %}
+      <a href="{% url 'bookings' %}" style="font-size:13px;color:var(--green);display:block;margin-top:10px;">View all →</a>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:12px;">Recent Activity</div>
+    {% for log in recent_activity %}
+    <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
+      <div style="width:6px;height:6px;border-radius:50%;background:var(--green);margin-top:6px;flex-shrink:0;"></div>
+      <div>
+        <div style="font-weight:500;">{{ log.get_action_display }}</div>
+        <div style="font-size:12px;color:var(--muted);">{{ log.created_at|timesince }} ago</div>
+      </div>
+    </div>
+    {% empty %}
+    <div style="color:var(--muted);font-size:13px;">No activity yet.</div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}

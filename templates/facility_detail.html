@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div style="margin-bottom:20px;">
+  <a href="{% url 'facilities' %}" style="font-size:13px;color:var(--muted);">← Back to Facilities</a>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start;">
+
+  <!-- LEFT -->
+  <div>
+    <!-- Main Image -->
+    {% if facility.image %}
+    <img src="{{ facility.image.url }}" alt="{{ facility.name }}" style="width:100%;height:280px;object-fit:cover;border-radius:14px;border:1px solid var(--border);margin-bottom:16px;display:block;"/>
+    {% else %}
+    <div style="width:100%;height:200px;background:var(--green-light);border-radius:14px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+      <svg width="60" height="60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1" style="color:var(--green);opacity:.3;"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+    </div>
+    {% endif %}
+
+    <!-- Details Card -->
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <div style="font-family:'DM Serif Display',serif;font-size:22px;">{{ facility.name }}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:4px;">{{ facility.building }} — {{ facility.floor }}</div>
+        </div>
+        <span class="status {{ facility.status }}">{{ facility.get_status_display }}</span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Type</div>
+          <div style="font-size:14px;">{{ facility.get_facility_type_display }}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Capacity</div>
+          <div style="font-size:14px;">{{ facility.capacity }} persons</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Location</div>
+          <div style="font-size:14px;">{{ facility.location }}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Custodian</div>
+          <div style="font-size:14px;">{{ facility.custodian|default:"—" }}</div>
+        </div>
+        {% if facility.availability_start %}
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Available Hours</div>
+          <div style="font-size:14px;">{{ facility.availability_start }} – {{ facility.availability_end }}</div>
+        </div>
+        {% endif %}
+        {% if facility.tags %}
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Tags</div>
+          <div style="font-size:13px;">
+            {% for tag in facility.tags.split %}
+            <span style="display:inline-block;background:var(--green-light);color:var(--green);padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;margin-right:4px;">{{ tag }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if facility.description %}
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Description</div>
+        <div style="font-size:14px;color:var(--text);line-height:1.6;">{{ facility.description }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Floor Plan -->
+    {% if facility.floor_plan %}
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">Floor Plan</div>
+      <img src="{{ facility.floor_plan.url }}" alt="Floor plan of {{ facility.name }}" style="width:100%;border-radius:8px;border:1px solid var(--border);"/>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- RIGHT SIDEBAR -->
+  <div>
+    <!-- Actions -->
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-title" style="margin-bottom:12px;">Actions</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        {% if user.can_book and facility.status == 'active' %}
+        <a href="{% url 'booking_create' %}?facility={{ facility.pk }}" class="btn btn-primary" style="justify-content:center;">Book This Facility</a>
+        {% endif %}
+        {% if user.can_manage_facilities %}
+        <a href="{% url 'facility_edit' facility.pk %}" class="btn btn-outline" style="justify-content:center;">Edit Facility</a>
+        {% endif %}
+        <a href="{% url 'facilities' %}" class="btn" style="background:var(--bg);border:1.5px solid var(--border);color:var(--muted);justify-content:center;">Back to List</a>
+      </div>
+    </div>
+
+    <!-- Recent Bookings -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">Recent Bookings</div>
+      {% for booking in recent_bookings %}
+      <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:13px;font-weight:500;">{{ booking.booked_by.get_full_name|default:booking.booked_by.username }}</div>
+        <div style="font-size:12px;color:var(--muted);">{{ booking.date }} · {{ booking.start_time }} – {{ booking.end_time }}</div>
+        <span class="status {{ booking.status }}" style="margin-top:4px;display:inline-block;">{{ booking.get_status_display }}</span>
+      </div>
+      {% empty %}
+      <div style="font-size:13px;color:var(--muted);text-align:center;padding:16px 0;">No bookings yet.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

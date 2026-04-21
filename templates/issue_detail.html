@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div style="margin-bottom:20px;">
+  <a href="{% url 'issue_list' %}" style="font-size:13px;color:var(--muted);">← Back to Reports</a>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;">
+
+  <!-- LEFT: Issue Detail -->
+  <div>
+    <div class="card" style="margin-bottom:14px;border-left:4px solid {% if issue.priority == 'urgent' %}var(--red){% elif issue.priority == 'high' %}var(--amber){% else %}var(--green){% endif %};">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="font-family:'DM Serif Display',serif;font-size:20px;">{{ issue.title }}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:4px;">
+            {{ issue.facility.name }} &nbsp;·&nbsp; {{ issue.get_category_display }}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;
+            {% if issue.priority == 'urgent' %}background:var(--red-light);color:var(--red);
+            {% elif issue.priority == 'high' %}background:var(--amber-light);color:var(--amber);
+            {% else %}background:#e8f0fb;color:#1a4a9e;{% endif %}">
+            {{ issue.get_priority_display|upper }}
+          </span>
+          <span class="status {% if issue.status == 'open' %}pending{% elif issue.status == 'resolved' %}approved{% else %}pending{% endif %}">{{ issue.get_status_display }}</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Reported by</div>
+          <div style="font-size:13px;font-weight:500;">{{ issue.reported_by.get_full_name|default:issue.reported_by.username }}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Date Reported</div>
+          <div style="font-size:13px;">{{ issue.created_at|date:"N j, Y g:i A" }}</div>
+        </div>
+        {% if issue.assigned_to %}
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Assigned To</div>
+          <div style="font-size:13px;font-weight:500;">{{ issue.assigned_to.get_full_name|default:issue.assigned_to.username }}</div>
+        </div>
+        {% endif %}
+        {% if issue.booking %}
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Related Booking</div>
+          <a href="{% url 'booking_detail' issue.booking.pk %}" style="font-size:13px;color:var(--green);">#{{ issue.booking.pk }} — {{ issue.booking.date }}</a>
+        </div>
+        {% endif %}
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Description</div>
+        <div style="font-size:14px;line-height:1.6;color:var(--text);">{{ issue.description }}</div>
+      </div>
+
+      {% if issue.requesting_room_change %}
+      <div style="background:#ede8fb;border-radius:10px;padding:12px 16px;margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:600;color:#4a35b0;margin-bottom:4px;">Room Change Requested</div>
+        {% if issue.preferred_alternative %}
+        <div style="font-size:13px;">Preferred: <strong>{{ issue.preferred_alternative.name }}</strong></div>
+        {% else %}
+        <div style="font-size:13px;color:var(--muted);">No preference — admin will assign available room</div>
+        {% endif %}
+        {% if issue.room_change_new_facility %}
+        <div style="font-size:13px;color:#4a35b0;font-weight:600;margin-top:6px;">✓ Approved — New room: {{ issue.room_change_new_facility.name }}</div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if issue.resolution_notes %}
+      <div style="background:var(--green-light);border-radius:10px;padding:12px 16px;">
+        <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:4px;">Resolution</div>
+        <div style="font-size:13px;">{{ issue.resolution_notes }}</div>
+        {% if issue.resolved_at %}<div style="font-size:11px;color:var(--muted);margin-top:4px;">Resolved {{ issue.resolved_at|timesince }} ago</div>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Manage (IT staff) -->
+    {% if user.is_it_staff and issue.status != 'resolved' %}
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-title" style="margin-bottom:14px;">Manage Issue</div>
+      <form method="POST" action="{% url 'issue_update' issue.pk %}">
+        {% csrf_token %}
+        <div class="form-group">
+          <label class="form-label">Update Status</label>
+          <select name="status" class="form-control">
+            {% for v, l in status_choices %}
+            <option value="{{ v }}" {% if issue.status == v %}selected{% endif %}>{{ l }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if issue.requesting_room_change and issue.status == 'room_change_requested' %}
+        <div class="form-group">
+          <label class="form-label">Assign New Room</label>
+          <select name="new_facility" class="form-control">
+            <option value="">Select available room...</option>
+            {% for f in available_facilities %}
+            <option value="{{ f.pk }}">{{ f.name }} — {{ f.floor }} (Cap: {{ f.capacity }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div class="form-group">
+          <label class="form-label">Resolution / Notes</label>
+          <textarea name="resolution_notes" class="form-control" placeholder="Describe what was done or what will be done...">{{ issue.resolution_notes }}</textarea>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button type="submit" class="btn btn-primary">Update</button>
+          {% if issue.requesting_room_change and issue.status == 'room_change_requested' %}
+          <button type="submit" name="approve_room_change" value="1" class="btn" style="background:#ede8fb;border:1.5px solid #9c8de8;color:#4a35b0;">Approve Room Change</button>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+    {% endif %}
+
+    <!-- Message Thread -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px;">Messages</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+        {% for msg in messages %}
+        <div style="display:flex;gap:10px;{% if msg.sender == user %}flex-direction:row-reverse;{% endif %}">
+          <div style="width:32px;height:32px;border-radius:50%;background:{% if msg.sender == user %}var(--green){% else %}#e8f0fb{% endif %};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:{% if msg.sender == user %}#fff{% else %}#1a4a9e{% endif %};flex-shrink:0;">
+            {{ msg.sender.first_name|first|upper }}{{ msg.sender.last_name|first|upper }}{% if not msg.sender.first_name %}{{ msg.sender.username|first|upper }}{% endif %}
+          </div>
+          <div style="max-width:70%;">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:3px;{% if msg.sender == user %}text-align:right;{% endif %}">
+              {{ msg.sender.get_full_name|default:msg.sender.username }} &nbsp;·&nbsp; {{ msg.created_at|timesince }} ago
+            </div>
+            <div style="padding:10px 14px;border-radius:10px;font-size:13px;line-height:1.5;
+              {% if msg.sender == user %}background:var(--green);color:#fff;{% else %}background:var(--bg);color:var(--text);{% endif %}">
+              {{ msg.body }}
+            </div>
+          </div>
+        </div>
+        {% empty %}
+        <div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">No messages yet. Start the conversation.</div>
+        {% endfor %}
+      </div>
+
+      <!-- Send message -->
+      <form method="POST" action="{% url 'send_message' issue.pk %}">
+        {% csrf_token %}
+        <div style="display:flex;gap:8px;">
+          <textarea name="body" class="form-control" style="resize:none;height:60px;flex:1;" placeholder="Type a message..."></textarea>
+          <button type="submit" class="btn btn-primary" style="align-self:flex-end;">Send</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- RIGHT SIDEBAR -->
+  <div>
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-title" style="margin-bottom:12px;">Room Status</div>
+      <div style="font-size:14px;font-weight:600;">{{ issue.facility.name }}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">{{ issue.facility.floor }}</div>
+      <div style="margin-top:10px;"><span class="status {{ issue.facility.status }}">{{ issue.facility.get_status_display }}</span></div>
+      {% if user.is_it_staff %}
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+        <form method="POST" action="{% url 'facility_set_maintenance' issue.facility.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{% url 'issue_detail' issue.pk %}"/>
+          {% if issue.facility.status == 'active' %}
+          <button type="submit" name="status" value="maintenance" class="btn btn-amber btn-sm" style="width:100%;justify-content:center;">Set Under Maintenance</button>
+          {% else %}
+          <button type="submit" name="status" value="active" class="btn btn-outline btn-sm" style="width:100%;justify-content:center;">Set Back to Active</button>
+          {% endif %}
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

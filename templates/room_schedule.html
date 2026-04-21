@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+.schedule-row{display:flex;align-items:stretch;gap:0;margin-bottom:8px;border-radius:10px;overflow:hidden;border:1px solid var(--border);}
+.time-col{width:90px;flex-shrink:0;background:var(--bg);padding:12px;font-size:12px;font-weight:600;color:var(--muted);display:flex;align-items:center;border-right:1px solid var(--border);}
+.slot-col{flex:1;padding:12px 14px;background:var(--white);}
+.slot-booked{background:var(--green-light);}
+.slot-maintenance{background:var(--amber-light);}
+.slot-available{background:var(--white);}
+.prof-tag{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--green);border-radius:8px;padding:6px 12px;font-size:13px;}
+.prof-avatar{width:28px;height:28px;border-radius:50%;background:var(--green);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.equipment-tag{display:inline-block;background:#e8f0fb;color:#1a4a9e;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;margin-right:4px;margin-top:4px;}
+</style>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+  <div>
+    <div style="font-family:'DM Serif Display',serif;font-size:24px;">Room Schedule</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Who is scheduled in each room</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px;">
+  <form method="GET" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+    <div>
+      <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Room</label>
+      <select name="facility" class="form-control" style="width:180px;padding:7px 12px;font-size:13px;" onchange="this.form.submit()">
+        <option value="">All Rooms</option>
+        {% for f in all_facilities %}
+        <option value="{{ f.pk }}" {% if selected_facility == f.pk|stringformat:'s' %}selected{% endif %}>{{ f.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Date</label>
+      <input type="date" name="date" class="form-control" style="width:160px;padding:7px 12px;font-size:13px;" value="{{ selected_date }}" onchange="this.form.submit()"/>
+    </div>
+    <div style="align-self:flex-end;">
+      <a href="{% url 'room_schedule' %}" class="btn btn-outline btn-sm" style="padding:8px 14px;">Today</a>
+    </div>
+  </form>
+</div>
+
+<!-- Stats row -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+  <div class="card" style="padding:14px 18px;">
+    <div style="font-size:22px;font-weight:600;">{{ stats.total_bookings }}</div>
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:3px;">Bookings Today</div>
+  </div>
+  <div class="card" style="padding:14px 18px;">
+    <div style="font-size:22px;font-weight:600;color:var(--green);">{{ stats.approved }}</div>
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:3px;">Approved</div>
+  </div>
+  <div class="card" style="padding:14px 18px;">
+    <div style="font-size:22px;font-weight:600;color:var(--amber);">{{ stats.pending }}</div>
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:3px;">Pending</div>
+  </div>
+  <div class="card" style="padding:14px 18px;">
+    <div style="font-size:22px;font-weight:600;color:#1a4a9e;">{{ stats.equipment_requests }}</div>
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:3px;">Equipment Requests</div>
+  </div>
+</div>
+
+<!-- Schedule per room -->
+{% for room_data in schedule %}
+<div class="card" style="margin-bottom:14px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="font-size:15px;font-weight:700;">{{ room_data.facility.name }}</div>
+      <span style="font-size:12px;color:var(--muted);">{{ room_data.facility.floor }} &nbsp;·&nbsp; Cap: {{ room_data.facility.capacity }}</span>
+      <span class="status {{ room_data.facility.status }}">{{ room_data.facility.get_status_display }}</span>
+    </div>
+    {% if user.is_it_staff %}
+    <a href="{% url 'facility_edit' room_data.facility.pk %}" class="btn btn-outline btn-sm">Edit Room</a>
+    {% endif %}
+  </div>
+
+  {% if room_data.bookings %}
+  {% for booking in room_data.bookings %}
+  <div class="schedule-row">
+    <div class="time-col">
+      {{ booking.start_time|time:"g:i A" }}<br>
+      <span style="font-weight:400;">{{ booking.end_time|time:"g:i A" }}</span>
+    </div>
+    <div class="slot-col slot-booked">
+      <div class="prof-tag">
+        <div class="prof-avatar">
+          {{ booking.booked_by.first_name|first|upper }}{{ booking.booked_by.last_name|first|upper }}{% if not booking.booked_by.first_name %}{{ booking.booked_by.username|first|upper }}{% endif %}
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:600;">{{ booking.booked_by.get_full_name|default:booking.booked_by.username }}</div>
+          <div style="font-size:11px;color:var(--muted);">{{ booking.booked_by.get_role_display }}{% if booking.booked_by.department %} &nbsp;·&nbsp; {{ booking.booked_by.get_department_display }}{% endif %}</div>
+        </div>
+        <span class="status {{ booking.status }}" style="margin-left:8px;">{{ booking.get_status_display }}</span>
+      </div>
+      {% if booking.purpose %}
+      <div style="font-size:12px;color:var(--muted);margin-top:6px;">{{ booking.purpose }}</div>
+      {% endif %}
+      {% if booking.equipment_needed or booking.equipment_items_list %}
+      <div style="margin-top:6px;">
+        <span style="font-size:11px;font-weight:600;color:#1a4a9e;">Equipment:</span>
+        {% if booking.equipment_items_list %}
+          {% for eq in booking.equipment_items_list %}
+          <span class="equipment-tag">{{ eq }}</span>
+          {% endfor %}
+        {% endif %}
+        {% if booking.equipment_needed %}
+        <span style="font-size:12px;color:var(--muted);">{{ booking.equipment_needed }}</span>
+        {% endif %}
+        {% if user.is_it_staff %}
+        <span style="margin-left:8px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;
+          {% if booking.equipment_status == 'delivered' %}background:var(--green-light);color:var(--green);
+          {% elif booking.equipment_status == 'prepared' %}background:var(--amber-light);color:var(--amber);
+          {% else %}background:#f0f0f0;color:var(--muted);{% endif %}">
+          {{ booking.get_equipment_status_display }}
+        </span>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div style="padding:16px;font-size:13px;color:var(--muted);text-align:center;">No bookings for {{ selected_date }}.</div>
+  {% endif %}
+</div>
+{% empty %}
+<div class="card" style="text-align:center;padding:40px;color:var(--muted);">No rooms found.</div>
+{% endfor %}
+
+{% endblock %}

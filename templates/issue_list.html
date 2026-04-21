@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+  <div>
+    <div style="font-family:'DM Serif Display',serif;font-size:24px;">Issue Reports</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">
+      {% if user.is_it_staff %}All reported facility issues{% else %}Your submitted reports{% endif %}
+    </div>
+  </div>
+  <a href="{% url 'issue_report_create' %}" class="btn btn-primary">+ Report Issue</a>
+</div>
+
+<!-- Filters -->
+<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:12px 18px;margin-bottom:16px;">
+  <form method="GET" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+    <select name="status" class="form-control" style="width:160px;padding:7px 12px;font-size:13px;" onchange="this.form.submit()">
+      <option value="">All Status</option>
+      {% for v, l in status_choices %}
+      <option value="{{ v }}" {% if status_filter == v %}selected{% endif %}>{{ l }}</option>
+      {% endfor %}
+    </select>
+    <select name="priority" class="form-control" style="width:140px;padding:7px 12px;font-size:13px;" onchange="this.form.submit()">
+      <option value="">All Priority</option>
+      {% for v, l in priority_choices %}
+      <option value="{{ v }}" {% if priority_filter == v %}selected{% endif %}>{{ l }}</option>
+      {% endfor %}
+    </select>
+    {% if status_filter or priority_filter %}
+    <a href="{% url 'issue_list' %}" class="btn btn-outline btn-sm">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px;">
+  {% for issue in issues %}
+  <div class="card" style="border-left:4px solid {% if issue.priority == 'urgent' %}var(--red){% elif issue.priority == 'high' %}var(--amber){% elif issue.priority == 'medium' %}#1a4a9e{% else %}var(--border){% endif %};">
+    <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+          <div style="font-size:14px;font-weight:600;">{{ issue.title }}</div>
+          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;
+            {% if issue.priority == 'urgent' %}background:var(--red-light);color:var(--red);
+            {% elif issue.priority == 'high' %}background:var(--amber-light);color:var(--amber);
+            {% elif issue.priority == 'medium' %}background:#e8f0fb;color:#1a4a9e;
+            {% else %}background:#f0f0f0;color:var(--muted);{% endif %}">
+            {{ issue.get_priority_display|upper }}
+          </span>
+          <span class="status {% if issue.status == 'open' %}pending{% elif issue.status == 'resolved' %}approved{% elif issue.status == 'in_progress' %}pending{% else %}pending{% endif %}">
+            {{ issue.get_status_display }}
+          </span>
+          {% if issue.requesting_room_change %}
+          <span style="background:#ede8fb;color:#4a35b0;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;">ROOM CHANGE REQ</span>
+          {% endif %}
+        </div>
+
+        <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">
+          <strong>{{ issue.facility.name }}</strong> &nbsp;·&nbsp; {{ issue.get_category_display }}
+          &nbsp;·&nbsp; Reported by {{ issue.reported_by.get_full_name|default:issue.reported_by.username }}
+          &nbsp;·&nbsp; {{ issue.created_at|timesince }} ago
+        </div>
+
+        <div style="font-size:13px;color:var(--text);line-height:1.5;">{{ issue.description|truncatechars:120 }}</div>
+
+        {% if issue.resolution_notes %}
+        <div style="margin-top:8px;padding:8px 12px;background:var(--green-light);border-radius:8px;font-size:12px;color:var(--green);">
+          <strong>Resolution:</strong> {{ issue.resolution_notes }}
+        </div>
+        {% endif %}
+
+        {% if issue.room_change_new_facility %}
+        <div style="margin-top:8px;padding:8px 12px;background:#ede8fb;border-radius:8px;font-size:12px;color:#4a35b0;">
+          <strong>Room changed to:</strong> {{ issue.room_change_new_facility.name }}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Actions -->
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+        <a href="{% url 'issue_detail' issue.pk %}" class="btn btn-outline btn-sm">View</a>
+        {% if user.is_it_staff and issue.status == 'open' %}
+        <a href="{% url 'issue_update' issue.pk %}" class="btn btn-primary btn-sm">Manage</a>
+        {% endif %}
+        {% if user.is_it_staff and issue.requesting_room_change and issue.status == 'room_change_requested' %}
+        <a href="{% url 'issue_approve_room_change' issue.pk %}" class="btn btn-sm" style="background:#ede8fb;border:1.5px solid #9c8de8;color:#4a35b0;">Approve Change</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="card" style="text-align:center;padding:40px;color:var(--muted);">
+    No issue reports found.
+    <br><br>
+    <a href="{% url 'issue_report_create' %}" class="btn btn-outline">+ Report an Issue</a>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

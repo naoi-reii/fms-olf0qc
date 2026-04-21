@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<style>
+.view-toggle{display:flex;gap:0;border:1.5px solid var(--border);border-radius:9px;overflow:hidden;}
+.view-toggle a{padding:7px 16px;font-size:13px;font-weight:500;color:var(--muted);transition:all .15s;display:flex;align-items:center;gap:6px;}
+.view-toggle a.active{background:var(--green);color:#fff;}
+.view-toggle a:not(.active):hover{background:var(--green-light);color:var(--green);}
+.view-toggle svg{width:14px;height:14px;}
+
+#calendar{min-height:500px;}
+.fc .fc-toolbar-title{font-size:16px;font-weight:600;}
+.fc .fc-button-primary{background:var(--green)!important;border-color:var(--green)!important;font-size:12px!important;padding:5px 12px!important;}
+.fc .fc-button-primary:hover{background:var(--green-dark)!important;}
+.fc .fc-day-today{background:var(--green-light)!important;}
+.fc-event{border-radius:6px!important;padding:2px 6px!important;font-size:11px!important;border:none!important;}
+.fc-event-title{font-weight:500!important;}
+.fc .fc-col-header-cell-cushion,.fc .fc-daygrid-day-number{color:var(--text)!important;font-size:12px;}
+
+.stat-pill{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px 20px;display:flex;flex-direction:column;gap:4px;}
+.stat-pill .num{font-size:26px;font-weight:600;line-height:1;}
+.stat-pill .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;}
+
+.booking-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
+.booking-row:last-child{border-bottom:none;}
+.booking-id{font-size:11px;font-weight:700;color:var(--muted);min-width:36px;}
+.booking-info{flex:1;}
+.booking-info .facility-name{font-size:13px;font-weight:600;}
+.booking-info .meta{font-size:12px;color:var(--muted);margin-top:2px;}
+.booking-actions{display:flex;gap:6px;flex-shrink:0;}
+</style>
+
+<!-- HEADER -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+  <div>
+    <div style="font-family:'DM Serif Display',serif;font-size:24px;">Bookings</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">
+      {% if user.can_manage_facilities %}All booking reservations{% else %}Your booking history{% endif %}
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <div class="view-toggle">
+      <a href="?view=list{% if status_filter %}&status={{ status_filter }}{% endif %}" class="{% if view_mode == 'list' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        List
+      </a>
+      <a href="?view=calendar" class="{% if view_mode == 'calendar' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Calendar
+      </a>
+    </div>
+    {% if user.can_book %}
+    <a href="{% url 'booking_create' %}" class="btn btn-primary">+ New Booking</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- STATS -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+  <div class="stat-pill">
+    <div class="num">{{ stats.total }}</div>
+    <div class="lbl">Total</div>
+  </div>
+  <div class="stat-pill">
+    <div class="num" style="color:var(--amber);">{{ stats.pending }}</div>
+    <div class="lbl">Pending</div>
+  </div>
+  <div class="stat-pill">
+    <div class="num" style="color:var(--green);">{{ stats.approved }}</div>
+    <div class="lbl">Approved</div>
+  </div>
+  <div class="stat-pill">
+    <div class="num" style="color:var(--muted);">{{ stats.today }}</div>
+    <div class="lbl">Today</div>
+  </div>
+</div>
+
+<!-- CALENDAR VIEW -->
+{% if view_mode == 'calendar' %}
+<div class="card">
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
+    <div class="card-title">Booking Calendar</div>
+    <div style="display:flex;gap:12px;font-size:12px;">
+      <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:3px;background:#1a6b3a;display:inline-block;"></span>Approved</span>
+      <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:3px;background:#b7770d;display:inline-block;"></span>Pending</span>
+    </div>
+  </div>
+  <div id="calendar"></div>
+</div>
+
+<!-- Event Detail Modal -->
+<div id="event-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--white);border-radius:14px;padding:24px;max-width:380px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.15);">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;">
+      <div id="modal-facility" style="font-size:16px;font-weight:600;"></div>
+      <button onclick="closeModal()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:20px;line-height:1;">&times;</button>
+    </div>
+    <div id="modal-body" style="font-size:13px;color:var(--text);display:flex;flex-direction:column;gap:10px;"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+<script>
+const bookings = {{ calendar_bookings_json|safe }};
+
+document.addEventListener('DOMContentLoaded', function() {
+  const cal = new FullCalendar.Calendar(document.getElementById('calendar'), {
+    initialView: 'dayGridMonth',
+    headerToolbar: {left:'prev,next today',center:'title',right:'dayGridMonth,timeGridWeek,timeGridDay'},
+    events: bookings,
+    eventClick: function(info) {
+      const e = info.event;
+      const p = e.extendedProps;
+      document.getElementById('modal-facility').textContent = p.facility;
+      document.getElementById('modal-body').innerHTML = `
+        <div><span style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px;">Booked by</span><br><strong>${p.booked_by}</strong></div>
+        <div><span style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px;">Date & Time</span><br>${e.startStr.split('T')[0]} &nbsp;${e.startStr.split('T')[1]?.slice(0,5)} – ${e.endStr.split('T')[1]?.slice(0,5)}</div>
+        ${p.purpose ? `<div><span style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px;">Purpose</span><br>${p.purpose}</div>` : ''}
+        <div><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:${p.status==='approved'?'var(--green-light)':'var(--amber-light)'};color:${p.status==='approved'?'var(--green)':'var(--amber)'};">${p.status.charAt(0).toUpperCase()+p.status.slice(1)}</span></div>
+      `;
+      document.getElementById('event-modal').style.display = 'flex';
+    },
+    height: 'auto',
+  });
+  cal.render();
+});
+
+function closeModal() {
+  document.getElementById('event-modal').style.display = 'none';
+}
+document.getElementById('event-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+</script>
+
+{% else %}
+<!-- LIST VIEW -->
+<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+  <form method="GET" style="display:flex;gap:8px;flex-wrap:wrap;">
+    <input type="hidden" name="view" value="list"/>
+    <select name="status" class="form-control" style="width:auto;padding:7px 14px;font-size:13px;" onchange="this.form.submit()">
+      <option value="">All Status</option>
+      <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+      <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
+      <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+      <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
+    </select>
+    <select name="facility" class="form-control" style="width:auto;padding:7px 14px;font-size:13px;" onchange="this.form.submit()">
+      <option value="">All Facilities</option>
+      {% for f in facilities %}
+      <option value="{{ f.pk }}" {% if facility_filter == f.pk|stringformat:'s' %}selected{% endif %}>{{ f.name }}</option>
+      {% endfor %}
+    </select>
+    {% if status_filter or facility_filter %}
+    <a href="?view=list" class="btn btn-outline btn-sm" style="padding:7px 14px;">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+<div class="card">
+  {% if bookings %}
+  {% for booking in bookings %}
+  <div class="booking-row">
+    <div class="booking-id">#{{ booking.pk }}</div>
+    <div style="width:6px;height:36px;border-radius:3px;flex-shrink:0;
+      {% if booking.status == 'approved' %}background:var(--green);
+      {% elif booking.status == 'pending' %}background:var(--amber);
+      {% elif booking.status == 'rejected' %}background:var(--red);
+      {% else %}background:var(--border);{% endif %}">
+    </div>
+    <div class="booking-info">
+      <div class="facility-name">{{ booking.facility.name }}</div>
+      <div class="meta">
+        {{ booking.date }} &nbsp;·&nbsp; {{ booking.start_time|time:"g:i A" }} – {{ booking.end_time|time:"g:i A" }}
+        {% if user.can_manage_facilities %} &nbsp;·&nbsp; {{ booking.booked_by.get_full_name|default:booking.booked_by.username }}{% endif %}
+        {% if booking.purpose %} &nbsp;·&nbsp; {{ booking.purpose|truncatechars:40 }}{% endif %}
+      </div>
+    </div>
+    <div style="text-align:center;min-width:60px;">
+      <div style="font-size:13px;font-weight:600;">{{ booking.number_of_attendees }}</div>
+      <div style="font-size:11px;color:var(--muted);">pax</div>
+    </div>
+    <span class="status {{ booking.status }}">{{ booking.get_status_display }}</span>
+    <div class="booking-actions">
+      {% if user.can_manage_facilities and booking.status == 'pending' %}
+      <form method="POST" action="{% url 'booking_action' booking.pk %}" style="display:inline;">
+        {% csrf_token %}<input type="hidden" name="action" value="approve"/>
+        <button type="submit" class="btn btn-outline btn-sm">Approve</button>
+      </form>
+      <form method="POST" action="{% url 'booking_action' booking.pk %}" style="display:inline;">
+        {% csrf_token %}<input type="hidden" name="action" value="reject"/>
+        <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+      </form>
+      {% elif booking.booked_by == user and booking.status == 'pending' %}
+      <form method="POST" action="{% url 'booking_cancel' booking.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Cancel this booking?')">Cancel</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:40px;color:var(--muted);">
+    No bookings found.
+    {% if user.can_book %}<br><br><a href="{% url 'booking_create' %}" class="btn btn-primary">+ Create Booking</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+.conflict-box{background:var(--amber-light);border:1.5px solid #f5e0a0;border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:13px;}
+.conflict-title{font-weight:600;color:var(--amber);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.suggestion-pill{display:inline-block;background:#fff;border:1.5px solid var(--green);color:var(--green);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;margin-right:6px;margin-bottom:4px;}
+.suggestion-pill:hover{background:var(--green);color:#fff;}
+.eq-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;}
+.eq-chip{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:13px;transition:all .15s;user-select:none;}
+.eq-chip:hover{border-color:var(--green);background:var(--green-light);}
+.eq-chip.on{border-color:var(--green);background:var(--green-light);color:var(--green);font-weight:500;}
+.eq-chip svg{width:14px;height:14px;flex-shrink:0;}
+.checking{display:none;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-top:8px;}
+.checking.show{display:flex;}
+.spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .6s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ok-badge{display:none;align-items:center;gap:6px;font-size:13px;color:var(--green);font-weight:500;margin-top:8px;}
+.ok-badge.show{display:flex;}
+</style>
+
+<div style="max-width:660px;">
+  <div style="margin-bottom:24px;">
+    <a href="{% url 'bookings' %}" style="font-size:13px;color:var(--muted);">← Back to Bookings</a>
+    <div style="font-family:'DM Serif Display',serif;font-size:24px;margin-top:8px;">New Booking Request</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Equipment requests will be forwarded to the IT Department.</div>
+  </div>
+
+  {% if has_conflict %}
+  <div class="conflict-box">
+    <div class="conflict-title">⚠ Time Conflict Detected</div>
+    {% for c in conflict_info %}
+    <div style="padding:5px 0;border-bottom:1px solid #f5e0a0;font-size:13px;">
+      Booked by <strong>{{ c.booked_by.get_full_name|default:c.booked_by.username }}</strong>
+      — {{ c.start_time|time:"g:i A" }}–{{ c.end_time|time:"g:i A" }}
+    </div>
+    {% endfor %}
+    <div style="margin-top:10px;color:var(--amber);font-size:13px;">Submit anyway?</div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <form method="POST">
+      {% csrf_token %}
+      {% if has_conflict %}<input type="hidden" name="force_submit" value="1"/>{% endif %}
+
+      <!-- Who is booking -->
+      <div style="background:var(--green-light);border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
+        <div style="width:42px;height:42px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff;flex-shrink:0;">
+          {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% if not user.first_name %}{{ user.username|first|upper }}{% endif %}
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;color:var(--text);">{{ user.get_full_name|default:user.username }}</div>
+          <div style="font-size:12px;color:var(--muted);">{{ user.get_role_display }}{% if user.department %} &nbsp;·&nbsp; {{ user.get_department_display }}{% endif %}{% if user.email %} &nbsp;·&nbsp; {{ user.email }}{% endif %}</div>
+        </div>
+        <span class="role-tag {{ user.role }}">{{ user.get_role_display }}</span>
+      </div>
+
+      <!-- Section 1: Facility & Schedule -->
+      <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Facility & Schedule</div>
+
+      <div class="form-group">
+        <label class="form-label">Facility <span style="color:var(--red);">*</span></label>
+        <select name="facility" id="fac" class="form-control" required>
+          <option value="">Select a facility...</option>
+          {% for f in facilities %}
+          <option value="{{ f.pk }}" {% if form_data.facility == f.pk|stringformat:'s' or preselect == f.pk|stringformat:'s' %}selected{% endif %}>
+            {{ f.name }} — {{ f.floor }} &nbsp;(Capacity: {{ f.capacity }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Date <span style="color:var(--red);">*</span></label>
+        <input type="date" name="date" id="dt" class="form-control" value="{{ form_data.date|default:today }}" min="{{ today }}" required/>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-group">
+          <label class="form-label">Start Time <span style="color:var(--red);">*</span></label>
+          <input type="time" name="start_time" id="st" class="form-control" value="{{ form_data.start_time|default:'' }}" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Time <span style="color:var(--red);">*</span></label>
+          <input type="time" name="end_time" id="et" class="form-control" value="{{ form_data.end_time|default:'' }}" required/>
+        </div>
+      </div>
+
+      <div class="checking" id="ck"><div class="spinner"></div> Checking availability...</div>
+      <div class="ok-badge" id="ok">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Facility is available for this slot!
+      </div>
+      <div id="cr"></div>
+
+      <!-- Section 2: Booking Details -->
+      <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin:20px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Booking Details</div>
+
+      <div class="form-group">
+        <label class="form-label">Purpose / Subject</label>
+        <textarea name="purpose" class="form-control" placeholder="e.g. IT 101 Lecture, Thesis Defense, Department Meeting...">{{ form_data.purpose|default:'' }}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Number of Attendees</label>
+        <input type="number" name="number_of_attendees" class="form-control" value="{{ form_data.number_of_attendees|default:1 }}" min="1" max="500"/>
+      </div>
+
+      <!-- Section 3: Equipment Request -->
+      <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin:20px 0 6px;padding-bottom:8px;border-bottom:1px solid var(--border);">
+        Equipment Request
+        <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);font-size:11px;margin-left:6px;">IT Department will receive and prepare these</span>
+      </div>
+
+      <div class="eq-grid">
+        {% for eq in equipment_choices %}
+        <label class="eq-chip" onclick="toggleChip(this)">
+          <input type="checkbox" name="equipment_items" value="{{ eq }}" style="display:none;"
+            {% if form_data and eq in form_data.getlist|default:'' %}checked{% endif %}/>
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            {% if 'HDMI' in eq %}<path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/>
+            {% elif 'Remote' in eq %}<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/>
+            {% elif 'Mic' in eq %}<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            {% elif 'Laptop' in eq %}<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/>
+            {% elif 'Marker' in eq %}<path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+            {% elif 'Extension' in eq %}<path d="M5 12H3m18 0h-2M12 5V3m0 18v-2M7.05 7.05l-1.41-1.41m12.72 12.72l-1.41-1.41M7.05 16.95l-1.41 1.41m12.72-12.72l-1.41 1.41"/>
+            {% elif 'Projector' in eq %}<rect x="2" y="7" width="20" height="10" rx="2"/><circle cx="17" cy="12" r="1"/>
+            {% else %}<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>{% endif %}
+          </svg>
+          {{ eq }}
+        </label>
+        {% endfor %}
+      </div>
+
+      <div class="form-group" style="margin-top:14px;">
+        <label class="form-label">Additional Equipment Notes</label>
+        <textarea name="equipment_needed" id="eq-notes" class="form-control" placeholder="Specify quantity or any special requirements for the IT Dept...">{{ form_data.equipment_needed|default:'' }}</textarea>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:20px;">
+        {% if has_conflict %}
+        <button type="submit" class="btn btn-amber">Submit Anyway</button>
+        <a href="{% url 'booking_create' %}" class="btn btn-outline">Change Time</a>
+        {% else %}
+        <button type="submit" class="btn btn-primary">Submit Booking</button>
+        {% endif %}
+        <a href="{% url 'bookings' %}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function toggleChip(label) {
+  const cb = label.querySelector('input');
+  cb.checked = !cb.checked;
+  label.classList.toggle('on', cb.checked);
+  const sel = [...document.querySelectorAll('input[name=equipment_items]:checked')].map(c => c.value);
+  const ta = document.getElementById('eq-notes');
+  if (!ta.value && sel.length) ta.placeholder = 'Selected: ' + sel.join(', ') + '\n\nAdd quantity or special notes...';
+}
+
+const CURL = '{% url "booking_check_conflict" %}';
+const CSRF = document.querySelector('[name=csrfmiddlewaretoken]').value;
+let tmr;
+async function check() {
+  const fac = document.getElementById('fac').value;
+  const dt = document.getElementById('dt').value;
+  const st = document.getElementById('st').value;
+  const et = document.getElementById('et').value;
+  if (!fac||!dt||!st||!et) return;
+  if (st >= et) { document.getElementById('cr').innerHTML='<div style="color:var(--red);font-size:13px;margin-top:8px;">End time must be after start time.</div>'; return; }
+  document.getElementById('ck').classList.add('show');
+  document.getElementById('ok').classList.remove('show');
+  document.getElementById('cr').innerHTML = '';
+  try {
+    const r = await fetch(CURL,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({facility_id:fac,date:dt,start_time:st,end_time:et})});
+    const d = await r.json();
+    document.getElementById('ck').classList.remove('show');
+    if (d.conflict) {
+      let h = `<div class="conflict-box" style="margin-top:10px;"><div class="conflict-title">⚠ Time Conflict</div>`;
+      d.conflicts.forEach(c=>{h+=`<div style="padding:5px 0;font-size:13px;">Booked by <strong>${c.booked_by}</strong> — ${c.start_time.slice(0,5)}–${c.end_time.slice(0,5)}</div>`;});
+      if(d.suggestions?.length){h+=`<div style="margin-top:8px;font-size:12px;font-weight:600;color:var(--green);">Try these slots:</div>`;d.suggestions.forEach(s=>{h+=`<span class="suggestion-pill" onclick="apply('${s.start}','${s.end}')">${s.start}–${s.end}</span>`;});}
+      h+=`</div>`;
+      document.getElementById('cr').innerHTML = h;
+    } else { document.getElementById('ok').classList.add('show'); }
+  } catch(e){document.getElementById('ck').classList.remove('show');}
+}
+function apply(s,e){document.getElementById('st').value=s;document.getElementById('et').value=e;check();}
+function dbc(){clearTimeout(tmr);tmr=setTimeout(check,600);}
+['fac','dt','st','et'].forEach(id=>document.getElementById(id)?.addEventListener('change',dbc));
+</script>
+{% endblock %}

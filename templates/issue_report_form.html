@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block content %}
+<div style="max-width:600px;">
+  <div style="margin-bottom:24px;">
+    <a href="{% url 'issue_list' %}" style="font-size:13px;color:var(--muted);">← Back to Reports</a>
+    <div style="font-family:'DM Serif Display',serif;font-size:24px;margin-top:8px;">Report a Room Issue</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">IT Department will receive this and take action.</div>
+  </div>
+
+  <div class="card">
+    <form method="POST">
+      {% csrf_token %}
+
+      <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Issue Details</div>
+
+      <div class="form-group">
+        <label class="form-label">Facility / Room <span style="color:var(--red);">*</span></label>
+        <select name="facility" class="form-control" required>
+          <option value="">Select room...</option>
+          {% for f in facilities %}
+          <option value="{{ f.pk }}" {% if preselect_facility == f.pk|stringformat:'s' %}selected{% endif %}>{{ f.name }} — {{ f.floor }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Category <span style="color:var(--red);">*</span></label>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+          {% for value, label in category_choices %}
+          <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-size:13px;transition:all .15s;"
+            onmouseover="this.style.borderColor='var(--green)'" onmouseout="if(!this.querySelector('input').checked)this.style.borderColor='var(--border)'">
+            <input type="radio" name="category" value="{{ value }}" style="accent-color:var(--green);" required
+              onchange="document.querySelectorAll('[name=category]').forEach(r=>{r.parentElement.style.background=r.checked?'var(--green-light)':'';r.parentElement.style.borderColor=r.checked?'var(--green)':'var(--border)';r.parentElement.style.color=r.checked?'var(--green)':''})"/>
+            {{ label }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Issue Title <span style="color:var(--red);">*</span></label>
+        <input type="text" name="title" class="form-control" placeholder="e.g. No aircon, Projector not working" required/>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Description <span style="color:var(--red);">*</span></label>
+        <textarea name="description" class="form-control" style="min-height:100px;" placeholder="Describe the problem in detail..." required></textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-group">
+          <label class="form-label">Priority</label>
+          <select name="priority" class="form-control">
+            {% for value, label in priority_choices %}
+            <option value="{{ value }}" {% if value == 'medium' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Related Booking <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+          <select name="booking" class="form-control">
+            <option value="">None</option>
+            {% for b in my_bookings %}
+            <option value="{{ b.pk }}" {% if preselect_booking == b.pk|stringformat:'s' %}selected{% endif %}>
+              #{{ b.pk }} — {{ b.facility.name }} {{ b.date }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Room Change Request -->
+      <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin:20px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Room Change Request <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted);">(optional)</span></div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <input type="checkbox" name="requesting_room_change" id="rcb" style="width:16px;height:16px;accent-color:var(--green);" onchange="document.getElementById('rc-section').style.display=this.checked?'block':'none'"/>
+        <label for="rcb" style="font-size:14px;cursor:pointer;font-weight:500;">I need to move to a different room</label>
+      </div>
+
+      <div id="rc-section" style="display:none;">
+        <div class="form-group">
+          <label class="form-label">Preferred Alternative Room <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+          <select name="preferred_alternative" class="form-control">
+            <option value="">Let admin decide</option>
+            {% for f in available_facilities %}
+            <option value="{{ f.pk }}">{{ f.name }} — {{ f.floor }} (Cap: {{ f.capacity }})</option>
+            {% endfor %}
+          </select>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">Admin will find the best available room if you don't specify.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:8px;">
+        <button type="submit" class="btn btn-primary">Submit Report</button>
+        <a href="{% url 'issue_list' %}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

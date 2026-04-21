@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div style="margin-bottom:20px;">
+  <a href="{% url 'bookings' %}" style="font-size:13px;color:var(--muted);">← Back to Bookings</a>
+</div>
+
+<div style="max-width:560px;">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+    <div style="font-family:'DM Serif Display',serif;font-size:24px;">Booking #{{ booking.pk }}</div>
+    <span class="status {{ booking.status }}" style="font-size:13px;">{{ booking.get_status_display }}</span>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
+    <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Facility</div>
+    <div style="font-size:16px;font-weight:600;">{{ booking.facility.name }}</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">{{ booking.facility.location }}</div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
+    <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Schedule</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Date</div>
+        <div style="font-size:14px;font-weight:500;">{{ booking.date }}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Start</div>
+        <div style="font-size:14px;font-weight:500;">{{ booking.start_time|time:"g:i A" }}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">End</div>
+        <div style="font-size:14px;font-weight:500;">{{ booking.end_time|time:"g:i A" }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
+    <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Details</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Booked by</div>
+        <div style="font-size:14px;">{{ booking.booked_by.get_full_name|default:booking.booked_by.username }}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Attendees</div>
+        <div style="font-size:14px;">{{ booking.number_of_attendees }} persons</div>
+      </div>
+      {% if booking.approved_by %}
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Approved by</div>
+        <div style="font-size:14px;">{{ booking.approved_by.get_full_name|default:booking.approved_by.username }}</div>
+      </div>
+      {% endif %}
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Submitted</div>
+        <div style="font-size:14px;">{{ booking.created_at|date:"N j, Y g:i A" }}</div>
+      </div>
+    </div>
+    {% if booking.purpose %}
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Purpose</div>
+      <div style="font-size:14px;line-height:1.6;">{{ booking.purpose }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="display:flex;gap:10px;">
+    {% if user.can_manage_facilities and booking.status == 'pending' %}
+    <form method="POST" action="{% url 'booking_action' booking.pk %}">
+      {% csrf_token %}<input type="hidden" name="action" value="approve"/>
+      <button type="submit" class="btn btn-primary">Approve</button>
+    </form>
+    <form method="POST" action="{% url 'booking_action' booking.pk %}">
+      {% csrf_token %}<input type="hidden" name="action" value="reject"/>
+      <button type="submit" class="btn btn-danger">Reject</button>
+    </form>
+    {% endif %}
+    {% if booking.booked_by == user and booking.status == 'pending' %}
+    <form method="POST" action="{% url 'booking_cancel' booking.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-danger" onclick="return confirm('Cancel this booking?')">Cancel Booking</button>
+    </form>
+    {% endif %}
+    <a href="{% url 'bookings' %}" class="btn btn-outline">Back</a>
+  </div>
+</div>
+
+{% endblock %}

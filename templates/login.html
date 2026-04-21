@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Login – OLFU FMS</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--green:#1a6b3a;--green-dark:#145430;--green-light:#e8f5ee;--bg:#f4f6f5;--white:#fff;--text:#1c2b22;--muted:#6b7c72;--border:#dde8e2;--red:#c0392b;--red-light:#fdf0ef;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);min-height:100vh;display:flex;align-items:center;justify-content:center;}
+
+.login-wrap{display:flex;width:860px;min-height:520px;background:var(--white);border-radius:20px;border:1px solid var(--border);overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,.06);}
+
+/* LEFT PANEL */
+.login-left{width:340px;background:var(--green);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;flex-shrink:0;}
+.logo-circle{width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;margin-bottom:16px;}
+.logo-circle svg{width:44px;height:44px;color:#fff;}
+.login-title{font-family:'DM Serif Display',serif;font-size:28px;color:#fff;text-align:center;line-height:1.2;}
+.login-sub{font-size:12px;color:rgba(255,255,255,.65);text-align:center;margin-top:8px;letter-spacing:1.2px;text-transform:uppercase;}
+
+/* ROLE INFO */
+.role-info{margin-top:36px;width:100%;}
+.role-box{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:14px 16px;margin-bottom:10px;}
+.role-name{font-size:12px;font-weight:600;color:#fff;margin-bottom:4px;}
+.role-desc{font-size:11px;color:rgba(255,255,255,.65);line-height:1.5;}
+.role-tag{display:inline-block;background:rgba(255,255,255,.2);color:#fff;font-size:10px;font-weight:600;letter-spacing:.5px;padding:2px 8px;border-radius:20px;text-transform:uppercase;margin-bottom:6px;}
+
+/* RIGHT PANEL */
+.login-right{flex:1;padding:48px 44px;display:flex;flex-direction:column;justify-content:center;}
+.form-head{margin-bottom:32px;}
+.form-head h2{font-family:'DM Serif Display',serif;font-size:26px;color:var(--text);}
+.form-head p{font-size:13px;color:var(--muted);margin-top:6px;}
+
+.form-group{margin-bottom:18px;}
+.form-label{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:7px;letter-spacing:.6px;text-transform:uppercase;}
+.form-control{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);transition:border-color .2s;outline:none;}
+.form-control:focus{border-color:var(--green);background:#fff;}
+
+.btn-login{width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:background .2s;margin-top:8px;}
+.btn-login:hover{background:var(--green-dark);}
+
+.msg{padding:12px 16px;border-radius:10px;font-size:13px;font-weight:500;margin-bottom:16px;background:var(--red-light);color:var(--red);border:1px solid #f5c6c3;}
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <!-- LEFT -->
+  <div class="login-left">
+    <div class="logo-circle">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    </div>
+    <div class="login-title">OLFU</div>
+    <div class="login-sub">Facility Management System</div>
+
+    <div class="role-info">
+      <div class="role-box">
+        <div class="role-tag">Facility Manager</div>
+        <div class="role-name">Sir/Ma'am (Admin)</div>
+        <div class="role-desc">Can create, edit, and update facility details and manage all bookings.</div>
+      </div>
+      <div class="role-box">
+        <div class="role-tag">Booker</div>
+        <div class="role-name">Staff / Faculty</div>
+        <div class="role-desc">Can browse facilities and submit booking requests only.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="login-right">
+    <div class="form-head">
+      <h2>Welcome back</h2>
+      <p>Sign in to your account to continue.</p>
+    </div>
+
+    {% if messages %}
+      {% for message in messages %}
+      <div class="msg">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="POST" action="{% url 'login' %}">
+      {% csrf_token %}
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input type="text" name="username" class="form-control" placeholder="Enter your username" autocomplete="username" required/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" name="password" class="form-control" placeholder="Enter your password" autocomplete="current-password" required/>
+      </div>
+      <button type="submit" class="btn-login">Sign In</button>
+    </form>
+  </div>
+</div>
+
+</body>
+</html>

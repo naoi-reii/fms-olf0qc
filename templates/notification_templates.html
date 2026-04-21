@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+  <div>
+    <div style="font-family:'DM Serif Display',serif;font-size:24px;">Notification Templates</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Customize automated notification messages</div>
+  </div>
+  <a href="{% url 'notifications' %}" class="btn btn-outline btn-sm">← Notifications</a>
+</div>
+
+<div style="background:var(--amber-light);border:1px solid #f5e0a0;border-radius:10px;padding:12px 16px;font-size:13px;color:var(--amber);margin-bottom:16px;">
+  Available variables: <code style="background:rgba(0,0,0,.06);padding:1px 6px;border-radius:4px;">{user}</code>
+  <code style="background:rgba(0,0,0,.06);padding:1px 6px;border-radius:4px;">{facility}</code>
+  <code style="background:rgba(0,0,0,.06);padding:1px 6px;border-radius:4px;">{date}</code>
+  <code style="background:rgba(0,0,0,.06);padding:1px 6px;border-radius:4px;">{start_time}</code>
+  <code style="background:rgba(0,0,0,.06);padding:1px 6px;border-radius:4px;">{end_time}</code>
+  <code style="background:rgba(0,0,0,.06);padding:1px 6px;border-radius:4px;">{status}</code>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px;">
+  {% for template in templates %}
+  <div class="card">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;">
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <div style="font-size:14px;font-weight:600;">{{ template.get_notif_type_display }}</div>
+          {% if template.is_active %}
+          <span style="background:var(--green-light);color:var(--green);font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;">ACTIVE</span>
+          {% else %}
+          <span style="background:#f0f0f0;color:var(--muted);font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;">INACTIVE</span>
+          {% endif %}
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Subject:</div>
+        <div style="font-size:13px;font-weight:500;margin-bottom:8px;">{{ template.subject }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Message body:</div>
+        <div style="font-size:13px;color:var(--text);background:var(--bg);border-radius:8px;padding:10px 12px;line-height:1.6;font-family:monospace;font-size:12px;">{{ template.body }}</div>
+        {% if template.updated_by %}
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;">Last updated {{ template.updated_at|timesince }} ago by {{ template.updated_by.get_full_name|default:template.updated_by.username }}</div>
+        {% endif %}
+      </div>
+      <a href="{% url 'template_edit' template.pk %}" class="btn btn-outline btn-sm" style="flex-shrink:0;">Edit</a>
+    </div>
+  </div>
+  {% empty %}
+  <div class="card" style="text-align:center;padding:40px;color:var(--muted);">No templates yet. Refresh to auto-generate defaults.</div>
+  {% endfor %}
+</div>
+
+{% endblock %}

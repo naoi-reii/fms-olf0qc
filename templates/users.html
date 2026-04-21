@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+.user-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;align-items:center;gap:14px;transition:box-shadow .2s;}
+.user-card:hover{box-shadow:0 2px 16px rgba(0,0,0,.06);}
+.user-avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0;}
+.user-info{flex:1;min-width:0;}
+.user-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.user-meta{font-size:12px;color:var(--muted);margin-top:2px;}
+.user-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+.stat-mini{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:14px 18px;text-align:center;}
+.stat-mini .n{font-size:24px;font-weight:600;line-height:1;}
+.stat-mini .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:3px;}
+.locked-badge{background:var(--red-light);color:var(--red);font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:.3px;}
+.active-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:4px;}
+.inactive-dot{width:8px;height:8px;border-radius:50%;background:var(--border);display:inline-block;margin-right:4px;}
+</style>
+
+<!-- HEADER -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+  <div>
+    <div style="font-family:'DM Serif Display',serif;font-size:24px;">User Management</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Module 3 — Superuser only</div>
+  </div>
+  <a href="{% url 'user_create' %}" class="btn btn-primary">+ Add User</a>
+</div>
+
+<!-- STATS -->
+<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px;">
+  <div class="stat-mini">
+    <div class="n">{{ stats.total }}</div>
+    <div class="l">Total</div>
+  </div>
+  <div class="stat-mini">
+    <div class="n" style="color:var(--green);">{{ stats.active }}</div>
+    <div class="l">Active</div>
+  </div>
+  <div class="stat-mini">
+    <div class="n" style="color:var(--red);">{{ stats.locked }}</div>
+    <div class="l">Locked</div>
+  </div>
+  <div class="stat-mini">
+    <div class="n" style="color:#4a35b0;">{{ stats.by_role.superuser|default:0 }}</div>
+    <div class="l">Superuser</div>
+  </div>
+  <div class="stat-mini">
+    <div class="n" style="color:var(--green);">{{ stats.by_role.facility_manager|default:0 }}</div>
+    <div class="l">Managers</div>
+  </div>
+  <div class="stat-mini">
+    <div class="n" style="color:#1a4a9e;">{{ stats.by_role.standard_user|default:0 }}</div>
+    <div class="l">Standard</div>
+  </div>
+</div>
+
+<!-- FILTERS -->
+<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:16px;">
+  <form method="GET" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+    <input type="text" name="search" class="form-control" placeholder="Search name, username, email..." style="width:220px;padding:7px 12px;font-size:13px;" value="{{ search }}"/>
+    <select name="role" class="form-control" style="width:160px;padding:7px 12px;font-size:13px;" onchange="this.form.submit()">
+      <option value="">All Roles</option>
+      {% for value, label in role_choices %}
+      <option value="{{ value }}" {% if role_filter == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="dept" class="form-control" style="width:180px;padding:7px 12px;font-size:13px;" onchange="this.form.submit()">
+      <option value="">All Departments</option>
+      {% for value, label in dept_choices %}
+      <option value="{{ value }}" {% if dept_filter == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm">Search</button>
+    {% if search or role_filter or dept_filter %}
+    <a href="{% url 'user_list' %}" class="btn btn-outline btn-sm">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+<!-- USER CARDS -->
+<div style="display:flex;flex-direction:column;gap:10px;">
+  {% for u in users %}
+  <div class="user-card">
+    <!-- Avatar -->
+    <div class="user-avatar" style="
+      {% if u.role == 'superuser' %}background:#ede8fb;color:#4a35b0;
+      {% elif u.role == 'facility_manager' %}background:var(--green-light);color:var(--green);
+      {% elif u.role == 'technical_staff' %}background:#e8f0fb;color:#1a4a9e;
+      {% else %}background:#f0f0f0;color:#555;{% endif %}">
+      {{ u.first_name|first|upper }}{{ u.last_name|first|upper }}{% if not u.first_name %}{{ u.username|first|upper }}{% endif %}
+    </div>
+
+    <!-- Info -->
+    <div class="user-info">
+      <div class="user-name">
+        {{ u.get_full_name|default:u.username }}
+        {% if u.is_locked %}<span class="locked-badge">LOCKED</span>{% endif %}
+        {% if not u.is_active %}<span style="background:#f0f0f0;color:#888;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;">INACTIVE</span>{% endif %}
+      </div>
+      <div class="user-meta">
+        @{{ u.username }}
+        {% if u.email %} &nbsp;·&nbsp; {{ u.email }}{% endif %}
+        {% if u.department %} &nbsp;·&nbsp; {{ u.get_department_display }}{% endif %}
+      </div>
+      <div class="user-badges">
+        <span class="role-tag {{ u.role }}">{{ u.get_role_display }}</span>
+        {% if u.last_active %}
+        <span style="font-size:11px;color:var(--muted);display:flex;align-items:center;">
+          <span class="active-dot"></span>Last active {{ u.last_active|timesince }} ago
+        </span>
+        {% endif %}
+        {% if u.mfa_enabled %}
+        <span style="background:#e8f0fb;color:#1a4a9e;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;">MFA ON</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
+      <a href="{% url 'user_activity' u.pk %}" class="btn btn-sm" style="background:var(--bg);border:1.5px solid var(--border);color:var(--muted);" title="View Activity">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </a>
+      <a href="{% url 'user_edit' u.pk %}" class="btn btn-outline btn-sm">Edit</a>
+      {% if u != request.user %}
+      <form method="POST" action="{% url 'user_toggle_lock' u.pk %}" style="display:inline;">
+        {% csrf_token %}
+        {% if u.is_locked %}
+        <button type="submit" class="btn btn-sm" style="background:var(--green-light);border:1.5px solid var(--green);color:var(--green);" title="Unlock account">Unlock</button>
+        {% else %}
+        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Lock this account?')" title="Lock account">Lock</button>
+        {% endif %}
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="card" style="text-align:center;padding:40px;color:var(--muted);">No users found.</div>
+  {% endfor %}
+</div>
+
+{% endblock %}

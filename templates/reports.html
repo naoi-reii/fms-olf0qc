@@ -1,0 +1,373 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<style>
+.report-card{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:22px;}
+.chart-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.chart-sub{font-size:11px;color:var(--muted);margin-bottom:16px;}
+.stat-box{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:18px 20px;}
+.stat-box .val{font-size:28px;font-weight:600;line-height:1;margin-bottom:4px;}
+.stat-box .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;}
+.stat-box .sub{font-size:12px;color:var(--muted);margin-top:4px;}
+.filter-bar{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+.filter-bar label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;}
+.export-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:9px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text);transition:all .15s;text-decoration:none;}
+.export-btn:hover{border-color:var(--green);color:var(--green);}
+.export-btn svg{width:14px;height:14px;}
+.progress-bar-wrap{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.progress-bar-wrap .bar-label{font-size:12px;width:100px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.progress-bar-wrap .bar-track{flex:1;height:8px;background:var(--bg);border-radius:4px;overflow:hidden;}
+.progress-bar-wrap .bar-fill{height:100%;border-radius:4px;background:var(--green);transition:width .6s ease;}
+.progress-bar-wrap .bar-count{font-size:12px;font-weight:600;min-width:24px;text-align:right;color:var(--text);}
+</style>
+
+<!-- HEADER -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+  <div>
+    <div style="font-family:'DM Serif Display',serif;font-size:24px;">Reports & Analytics</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Module 5 — Facility Managers only</div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <a href="{% url 'reports_export_csv' %}?date_from={{ date_from }}&date_to={{ date_to }}" class="export-btn">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export CSV
+    </a>
+    <button onclick="window.print()" class="export-btn">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Print
+    </button>
+  </div>
+</div>
+
+<!-- FILTERS -->
+<div class="filter-bar">
+  <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;width:100%;">
+    <div>
+      <label>Date From</label>
+      <input type="date" name="date_from" class="form-control" style="width:150px;padding:7px 12px;font-size:13px;" value="{{ date_from }}"/>
+    </div>
+    <div>
+      <label>Date To</label>
+      <input type="date" name="date_to" class="form-control" style="width:150px;padding:7px 12px;font-size:13px;" value="{{ date_to }}"/>
+    </div>
+    <div>
+      <label>Facility Type</label>
+      <select name="facility_type" class="form-control" style="width:160px;padding:7px 12px;font-size:13px;">
+        <option value="">All Types</option>
+        {% for value, label in type_choices %}
+        <option value="{{ value }}" {% if facility_type_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Floor</label>
+      <select name="floor" class="form-control" style="width:140px;padding:7px 12px;font-size:13px;">
+        <option value="">All Floors</option>
+        {% for value, label in floor_choices %}
+        <option value="{{ value }}" {% if floor_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm" style="padding:8px 18px;">Apply</button>
+    <a href="{% url 'reports' %}" class="btn btn-outline btn-sm" style="padding:8px 14px;">Reset</a>
+  </form>
+</div>
+
+<!-- SUMMARY STATS -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr) repeat(3,1fr);gap:12px;margin-bottom:20px;">
+  <div class="stat-box" style="grid-column:span 1;">
+    <div class="val">{{ total_bookings }}</div>
+    <div class="lbl">Total Bookings</div>
+    <div class="sub">In date range</div>
+  </div>
+  <div class="stat-box">
+    <div class="val" style="color:var(--green);">{{ approved }}</div>
+    <div class="lbl">Approved</div>
+    <div class="sub">{{ approval_rate }}% rate</div>
+  </div>
+  <div class="stat-box">
+    <div class="val" style="color:var(--amber);">{{ pending }}</div>
+    <div class="lbl">Pending</div>
+  </div>
+  <div class="stat-box">
+    <div class="val" style="color:var(--red);">{{ rejected }}</div>
+    <div class="lbl">Rejected</div>
+  </div>
+  <div class="stat-box">
+    <div class="val">{{ total_facilities }}</div>
+    <div class="lbl">Facilities</div>
+    <div class="sub">{{ active_facilities }} active</div>
+  </div>
+  <div class="stat-box">
+    <div class="val" style="color:var(--amber);">{{ maintenance_facilities }}</div>
+    <div class="lbl">Maintenance</div>
+  </div>
+  <div class="stat-box">
+    <div class="val">{{ total_users }}</div>
+    <div class="lbl">Total Users</div>
+  </div>
+</div>
+
+<!-- ROW 1: Daily Bookings Line Chart + Status Doughnut -->
+<div style="display:grid;grid-template-columns:1fr 320px;gap:16px;margin-bottom:16px;">
+
+  <div class="report-card">
+    <div class="chart-title">Booking Trend</div>
+    <div class="chart-sub">Daily booking count — last 14 days</div>
+    <canvas id="dailyChart" height="100"></canvas>
+  </div>
+
+  <div class="report-card">
+    <div class="chart-title">Booking Status</div>
+    <div class="chart-sub">Distribution by status</div>
+    <canvas id="statusChart" height="180"></canvas>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#1a6b3a;display:inline-block;"></span>Approved</span><strong>{{ approved }}</strong></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#b7770d;display:inline-block;"></span>Pending</span><strong>{{ pending }}</strong></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#c0392b;display:inline-block;"></span>Rejected</span><strong>{{ rejected }}</strong></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#888780;display:inline-block;"></span>Cancelled</span><strong>{{ cancelled }}</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- ROW 2: Peak Hours + Type + Floor -->
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+
+  <div class="report-card">
+    <div class="chart-title">Peak Usage Hours</div>
+    <div class="chart-sub">Bookings per hour (7AM–8PM)</div>
+    <canvas id="hourChart" height="160"></canvas>
+  </div>
+
+  <div class="report-card">
+    <div class="chart-title">By Facility Type</div>
+    <div class="chart-sub">Booking count per type</div>
+    <canvas id="typeChart" height="160"></canvas>
+  </div>
+
+  <div class="report-card">
+    <div class="chart-title">By Floor</div>
+    <div class="chart-sub">Booking count per floor</div>
+    <canvas id="floorChart" height="160"></canvas>
+  </div>
+</div>
+
+<!-- ROW 3: Facility Utilization Table + Top Bookers -->
+<div style="display:grid;grid-template-columns:1fr 300px;gap:16px;margin-bottom:16px;">
+
+  <!-- Facility Utilization -->
+  <div class="report-card">
+    <div class="chart-title" style="margin-bottom:16px;">Facility Utilization</div>
+    {% if facility_usage %}
+    {% for f in facility_usage %}
+    <div class="progress-bar-wrap">
+      <div class="bar-label" title="{{ f.name }}">{{ f.name }}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:{% widthratio f.total facility_usage.0.total 100 %}%;"></div>
+      </div>
+      <div class="bar-count">{{ f.total }}</div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="color:var(--muted);font-size:13px;text-align:center;padding:20px;">No booking data in this range.</div>
+    {% endif %}
+  </div>
+
+  <!-- Top Bookers -->
+  <div class="report-card">
+    <div class="chart-title" style="margin-bottom:16px;">Top Bookers</div>
+    {% for b in top_bookers %}
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--green);flex-shrink:0;">
+        {{ forloop.counter }}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          {% if b.booked_by__first_name %}{{ b.booked_by__first_name }} {{ b.booked_by__last_name }}{% else %}{{ b.booked_by__username }}{% endif %}
+        </div>
+        <div style="font-size:11px;color:var(--muted);">{{ b.booked_by__role|title }}</div>
+      </div>
+      <div style="font-size:14px;font-weight:600;color:var(--green);">{{ b.count }}</div>
+    </div>
+    {% empty %}
+    <div style="color:var(--muted);font-size:13px;text-align:center;padding:20px;">No data available.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ROW 4: Maintenance & Downtime -->
+<div class="report-card">
+  <div class="chart-title" style="margin-bottom:16px;">Maintenance & Facility Status</div>
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--border);">Facility</th>
+          <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--border);">Floor</th>
+          <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--border);">Type</th>
+          <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--border);">Status</th>
+          <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--border);">Total Bookings</th>
+          <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--border);">Approved</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in facility_usage %}
+        <tr>
+          <td style="padding:11px 14px;border-bottom:1px solid var(--border);font-weight:500;">{{ f.name }}</td>
+          <td style="padding:11px 14px;border-bottom:1px solid var(--border);color:var(--muted);">{{ f.floor|default:"—" }}</td>
+          <td style="padding:11px 14px;border-bottom:1px solid var(--border);color:var(--muted);">{{ f.facility_type|title }}</td>
+          <td style="padding:11px 14px;border-bottom:1px solid var(--border);"><span class="status active">Active</span></td>
+          <td style="padding:11px 14px;border-bottom:1px solid var(--border);font-weight:600;">{{ f.total }}</td>
+          <td style="padding:11px 14px;border-bottom:1px solid var(--border);color:var(--green);font-weight:600;">{{ f.approved_count }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">No data in selected range.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const GREEN = '#1a6b3a';
+const GREEN_LIGHT = 'rgba(26,107,58,0.12)';
+const AMBER = '#b7770d';
+const RED = '#c0392b';
+const GRAY = '#888780';
+const BLUE = '#1a4a9e';
+const TEAL = '#0f6e56';
+const CORAL = '#d85a30';
+
+Chart.defaults.font.family = "'DM Sans', sans-serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#6b7c72';
+
+const dailyLabels = {{ daily_labels_json|safe }};
+const dailyData = {{ daily_data_json|safe }};
+const statusData = {{ status_chart_json|safe }};
+const hourLabels = {{ hour_labels_json|safe }};
+const hourData = {{ hour_data_json|safe }};
+const typeData = {{ type_chart_json|safe }};
+const floorData = {{ floor_chart_json|safe }};
+
+// Daily Line Chart
+new Chart(document.getElementById('dailyChart'), {
+  type: 'line',
+  data: {
+    labels: dailyLabels,
+    datasets: [{
+      label: 'Bookings',
+      data: dailyData,
+      borderColor: GREEN,
+      backgroundColor: GREEN_LIGHT,
+      borderWidth: 2,
+      pointBackgroundColor: GREEN,
+      pointRadius: 4,
+      tension: 0.4,
+      fill: true,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,.04)' } },
+      x: { grid: { display: false } },
+    }
+  }
+});
+
+// Status Doughnut
+new Chart(document.getElementById('statusChart'), {
+  type: 'doughnut',
+  data: {
+    labels: statusData.labels,
+    datasets: [{
+      data: statusData.data,
+      backgroundColor: statusData.colors,
+      borderWidth: 0,
+      hoverOffset: 6,
+    }]
+  },
+  options: {
+    responsive: true,
+    cutout: '68%',
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw}` } }
+    }
+  }
+});
+
+// Peak Hours Bar
+const maxHour = Math.max(...hourData) || 1;
+new Chart(document.getElementById('hourChart'), {
+  type: 'bar',
+  data: {
+    labels: hourLabels,
+    datasets: [{
+      label: 'Bookings',
+      data: hourData,
+      backgroundColor: hourData.map(v => v === maxHour ? GREEN : 'rgba(26,107,58,0.25)'),
+      borderRadius: 6,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,.04)' } },
+      x: { grid: { display: false }, ticks: { maxRotation: 45 } },
+    }
+  }
+});
+
+// By Type Horizontal Bar
+new Chart(document.getElementById('typeChart'), {
+  type: 'bar',
+  data: {
+    labels: typeData.labels.length ? typeData.labels : ['No data'],
+    datasets: [{
+      data: typeData.data.length ? typeData.data : [0],
+      backgroundColor: [GREEN, TEAL, CORAL, AMBER, BLUE],
+      borderRadius: 6,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,.04)' } },
+      y: { grid: { display: false } },
+    }
+  }
+});
+
+// By Floor Bar
+new Chart(document.getElementById('floorChart'), {
+  type: 'bar',
+  data: {
+    labels: floorData.labels.length ? floorData.labels : ['No data'],
+    datasets: [{
+      data: floorData.data.length ? floorData.data : [0],
+      backgroundColor: [TEAL, GREEN, CORAL, AMBER, BLUE],
+      borderRadius: 6,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,.04)' } },
+      x: { grid: { display: false } },
+    }
+  }
+});
+</script>
+
+{% endblock %}

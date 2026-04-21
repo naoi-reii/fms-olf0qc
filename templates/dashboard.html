@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div style="font-family:'DM Serif Display',serif;font-size:26px;margin-bottom:20px;">
+  Welcome, <strong style="color:var(--green);">{{ user.get_full_name|default:user.username }}</strong>
+  <span class="role-tag {{ user.role }}" style="font-family:'DM Sans',sans-serif;font-size:12px;vertical-align:middle;margin-left:8px;">{{ user.get_role_display }}</span>
+</div>
+
+<!-- STATS -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;">
+  <div class="card">
+    <div class="card-sub">Total Facilities</div>
+    <div style="font-size:30px;font-weight:600;margin-top:6px;">{{ total_facilities }}</div>
+    <div class="card-sub" style="margin-top:4px;">{{ active_facilities }} active</div>
+  </div>
+  <div class="card">
+    <div class="card-sub">Bookings Today</div>
+    <div style="font-size:30px;font-weight:600;margin-top:6px;">{{ bookings_today }}</div>
+  </div>
+  <div class="card">
+    <div class="card-sub">Pending Approvals</div>
+    <div style="font-size:30px;font-weight:600;margin-top:6px;color:var(--amber);">{{ pending_bookings }}</div>
+  </div>
+  <div class="card" style="background:var(--green);border-color:var(--green);">
+    <div class="card-sub" style="color:rgba(255,255,255,.65);">Notifications</div>
+    <div style="font-size:30px;font-weight:600;margin-top:6px;color:#fff;">{{ unread_notifications }}</div>
+    <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:4px;">unread</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;">
+  <!-- Permissions Card -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px;">Your Access</div>
+    <div style="display:flex;flex-direction:column;gap:9px;font-size:13px;">
+
+      {% if user.can_manage_facilities %}
+      <div style="display:flex;align-items:center;gap:8px;color:var(--green);">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Create, edit, archive facilities
+      </div>
+      {% else %}
+      <div style="display:flex;align-items:center;gap:8px;color:var(--muted);">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Manage facilities
+      </div>
+      {% endif %}
+
+      {% if user.can_book %}
+      <div style="display:flex;align-items:center;gap:8px;color:var(--green);">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Book & reserve facilities
+      </div>
+      {% else %}
+      <div style="display:flex;align-items:center;gap:8px;color:var(--muted);">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Book facilities
+      </div>
+      {% endif %}
+
+      {% if user.can_manage_users %}
+      <div style="display:flex;align-items:center;gap:8px;color:var(--green);">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Manage users & roles
+      </div>
+      {% endif %}
+
+      {% if user.can_view_reports %}
+      <div style="display:flex;align-items:center;gap:8px;color:var(--green);">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        View reports & analytics
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px;">Quick Actions</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <a href="{% url 'facilities' %}" class="btn btn-outline" style="justify-content:center;">View All Facilities</a>
+      {% if user.can_manage_facilities %}
+      <a href="{% url 'facility_create' %}" class="btn btn-primary" style="justify-content:center;">+ Add New Facility</a>
+      {% endif %}
+      {% if user.can_book %}
+      <a href="{% url 'booking_create' %}" class="btn btn-primary" style="justify-content:center;">+ New Booking</a>
+      {% endif %}
+      {% if user.can_manage_users %}
+      <a href="{% url 'user_create' %}" class="btn btn-outline" style="justify-content:center;">+ Add New User</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Recent Bookings -->
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div>
+      <div class="card-title">Recent Bookings</div>
+      <div class="card-sub">Latest booking activity</div>
+    </div>
+    <a href="{% url 'bookings' %}" class="btn btn-outline btn-sm">View All</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Facility</th>
+          <th>Booked By</th>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Status</th>
+          {% if user.can_manage_facilities %}<th>Action</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for booking in recent_bookings %}
+        <tr>
+          <td><strong>{{ booking.facility.name }}</strong></td>
+          <td>{{ booking.booked_by.get_full_name|default:booking.booked_by.username }}</td>
+          <td>{{ booking.date }}</td>
+          <td>{{ booking.start_time }} – {{ booking.end_time }}</td>
+          <td><span class="status {{ booking.status }}">{{ booking.get_status_display }}</span></td>
+          {% if user.can_manage_facilities %}
+          <td>
+            {% if booking.status == 'pending' %}
+            <form method="POST" action="{% url 'booking_action' booking.pk %}" style="display:inline;">
+              {% csrf_token %}<input type="hidden" name="action" value="approve"/>
+              <button type="submit" class="btn btn-outline btn-sm">Approve</button>
+            </form>
+            <form method="POST" action="{% url 'booking_action' booking.pk %}" style="display:inline;margin-left:4px;">
+              {% csrf_token %}<input type="hidden" name="action" value="reject"/>
+              <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+            </form>
+            {% else %}—{% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">No bookings yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+  <div>
+    <div style="font-family:'DM Serif Display',serif;font-size:24px;">Facilities</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">CAS Building — {{ total }} facilities</div>
+  </div>
+  {% if user.can_manage_facilities %}
+  <a href="{% url 'facility_create' %}" class="btn btn-primary">+ Add Facility</a>
+  {% endif %}
+</div>
+
+<!-- FILTERS -->
+<div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+  <form method="GET" style="display:flex;gap:8px;flex-wrap:wrap;">
+    <select name="floor" class="form-control" style="width:auto;padding:7px 14px;font-size:13px;" onchange="this.form.submit()">
+      <option value="">All Floors</option>
+      {% for value, label in floor_choices %}
+      <option value="{{ value }}" {% if floor_filter == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="status" class="form-control" style="width:auto;padding:7px 14px;font-size:13px;" onchange="this.form.submit()">
+      <option value="">All Status</option>
+      <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+      <option value="maintenance" {% if status_filter == 'maintenance' %}selected{% endif %}>Under Maintenance</option>
+      <option value="unavailable" {% if status_filter == 'unavailable' %}selected{% endif %}>Unavailable</option>
+    </select>
+    <select name="type" class="form-control" style="width:auto;padding:7px 14px;font-size:13px;" onchange="this.form.submit()">
+      <option value="">All Types</option>
+      <option value="classroom" {% if type_filter == 'classroom' %}selected{% endif %}>Classroom</option>
+      <option value="laboratory" {% if type_filter == 'laboratory' %}selected{% endif %}>Laboratory</option>
+      <option value="conference" {% if type_filter == 'conference' %}selected{% endif %}>Conference Room</option>
+    </select>
+    {% if floor_filter or status_filter or type_filter %}
+    <a href="{% url 'facilities' %}" class="btn btn-outline" style="padding:7px 14px;font-size:13px;">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if grouped_facilities %}
+  {% for floor, facilities in grouped_facilities.items %}
+  <!-- FLOOR SECTION -->
+  <div style="margin-bottom:32px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+      <div style="background:var(--green);color:#fff;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:4px 12px;border-radius:20px;">{{ floor }}</div>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <div style="font-size:12px;color:var(--muted);">{{ facilities|length }} room{{ facilities|length|pluralize }}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;">
+      {% for facility in facilities %}
+      <div class="card" style="padding:0;overflow:hidden;transition:box-shadow .2s;" onmouseover="this.style.boxShadow='0 4px 20px rgba(0,0,0,.08)'" onmouseout="this.style.boxShadow='none'">
+
+        <!-- IMAGE -->
+        {% if facility.image %}
+        <img src="{{ facility.image.url }}" alt="{{ facility.name }}" style="width:100%;height:140px;object-fit:cover;display:block;"/>
+        {% else %}
+        <div style="width:100%;height:140px;background:var(--green-light);display:flex;align-items:center;justify-content:center;">
+          {% if facility.facility_type == 'laboratory' %}
+          <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1" style="color:var(--green);opacity:.4;"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/></svg>
+          {% else %}
+          <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1" style="color:var(--green);opacity:.4;"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- INFO -->
+        <div style="padding:14px 16px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">
+            <div style="font-size:14px;font-weight:600;color:var(--text);">{{ facility.name }}</div>
+            <span class="status {{ facility.status }}" style="font-size:10px;flex-shrink:0;margin-left:8px;">{{ facility.get_status_display }}</span>
+          </div>
+
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:5px;">
+            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            {{ facility.building }} — {{ facility.floor }}
+          </div>
+
+          <div style="display:flex;gap:12px;font-size:12px;color:var(--muted);margin-bottom:10px;">
+            <span style="display:flex;align-items:center;gap:4px;">
+              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+              {{ facility.capacity }} pax
+            </span>
+            <span style="display:flex;align-items:center;gap:4px;">
+              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/></svg>
+              {{ facility.get_facility_type_display }}
+            </span>
+          </div>
+
+          {% if facility.availability_start and facility.availability_end %}
+          <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">
+            Available: {{ facility.availability_start }} – {{ facility.availability_end }}
+          </div>
+          {% endif %}
+
+          <div style="display:flex;gap:8px;">
+            <a href="{% url 'facility_detail' facility.pk %}" class="btn btn-outline btn-sm" style="flex:1;justify-content:center;">View</a>
+            {% if user.can_manage_facilities %}
+            <a href="{% url 'facility_edit' facility.pk %}" class="btn btn-sm" style="background:var(--bg);border:1.5px solid var(--border);color:var(--muted);justify-content:center;">Edit</a>
+            {% endif %}
+            {% if user.can_book and facility.status == 'active' %}
+            <a href="{% url 'booking_create' %}?facility={{ facility.pk }}" class="btn btn-primary btn-sm" style="justify-content:center;">Book</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+{% else %}
+<div class="card" style="text-align:center;padding:48px;color:var(--muted);">
+  No facilities found.
+  {% if user.can_manage_facilities %}<br><br><a href="{% url 'facility_create' %}" class="btn btn-primary">+ Add First Facility</a>{% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

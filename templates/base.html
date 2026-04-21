@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OLFU – Facility Management System</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --green:#1a6b3a;--green-dark:#145430;--green-light:#e8f5ee;
+  --bg:#f4f6f5;--white:#fff;--text:#1c2b22;--muted:#6b7c72;--border:#dde8e2;
+  --red:#c0392b;--red-light:#fdf0ef;--amber:#b7770d;--amber-light:#fef9e7;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);}
+a{text-decoration:none;color:inherit;}
+
+.topbar{height:62px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px;position:sticky;top:0;z-index:100;}
+.topbar-pill{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:0 14px;height:38px;font-size:13px;}
+.topbar-pill svg{width:14px;height:14px;color:var(--muted);}
+.topbar-pill b{font-weight:600;}
+.topbar-spacer{flex:1;}
+.topbar-icon{width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);transition:border-color .2s;position:relative;}
+.topbar-icon:hover{border-color:var(--green);}
+.topbar-icon svg{width:17px;height:17px;}
+.notif-badge{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:10px;font-weight:700;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+.topbar-user{display:flex;align-items:center;gap:10px;margin-left:4px;}
+.topbar-avatar{width:36px;height:36px;border-radius:50%;background:var(--green-light);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;}
+.topbar-avatar svg{width:20px;height:20px;color:var(--green);}
+.topbar-name{font-size:13px;font-weight:600;}
+.topbar-role{font-size:11px;color:var(--muted);}
+
+.layout{display:flex;min-height:calc(100vh - 62px);}
+
+.sidebar{width:220px;background:var(--white);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;position:sticky;top:62px;height:calc(100vh - 62px);overflow-y:auto;}
+.sidebar-logo{padding:20px 20px 14px;display:flex;flex-direction:column;align-items:center;border-bottom:1px solid var(--border);}
+.logo-circle{width:58px;height:58px;border-radius:50%;background:var(--green-light);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;margin-bottom:8px;}
+.logo-circle svg{width:30px;height:30px;color:var(--green);}
+.logo-name{font-size:15px;font-weight:700;color:var(--green);}
+.logo-sub{font-size:9px;font-weight:600;letter-spacing:1.4px;color:var(--muted);text-transform:uppercase;margin-top:2px;text-align:center;}
+.sidebar-nav{padding:12px 10px;flex:1;}
+.nav-label{font-size:10px;font-weight:600;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;padding:0 8px;margin:10px 0 4px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:500;color:var(--muted);transition:all .15s;margin-bottom:2px;}
+.nav-item:hover{background:var(--green-light);color:var(--green);}
+.nav-item.active{background:var(--green);color:#fff;}
+.nav-item.disabled{opacity:.35;pointer-events:none;}
+.nav-item svg{width:16px;height:16px;flex-shrink:0;}
+.nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;}
+
+.main{flex:1;padding:28px 28px 24px;}
+
+.messages{margin-bottom:16px;}
+.msg{padding:11px 16px;border-radius:10px;font-size:13px;font-weight:500;margin-bottom:8px;}
+.msg.error{background:var(--red-light);color:var(--red);border:1px solid #f5c6c3;}
+.msg.success{background:var(--green-light);color:var(--green);border:1px solid #b8ddc8;}
+.msg.warning{background:var(--amber-light);color:var(--amber);border:1px solid #f5e0a0;}
+
+.card{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:22px;}
+.card-title{font-size:14px;font-weight:600;color:var(--green);margin-bottom:4px;}
+.card-sub{font-size:11px;color:var(--muted);}
+
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:9px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all .15s;}
+.btn-primary{background:var(--green);color:#fff;}
+.btn-primary:hover{background:var(--green-dark);}
+.btn-outline{background:none;border:1.5px solid var(--green);color:var(--green);}
+.btn-outline:hover{background:var(--green);color:#fff;}
+.btn-danger{background:var(--red-light);color:var(--red);border:1.5px solid #f5c6c3;}
+.btn-danger:hover{background:var(--red);color:#fff;}
+.btn-sm{padding:5px 12px;font-size:12px;}
+.btn-amber{background:var(--amber-light);color:var(--amber);border:1.5px solid #f5e0a0;}
+.btn-amber:hover{background:var(--amber);color:#fff;}
+
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;padding:10px 14px;font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--border);}
+td{padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#fafcfa;}
+
+.status{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;}
+.status.pending{background:var(--amber-light);color:var(--amber);}
+.status.approved{background:var(--green-light);color:var(--green);}
+.status.rejected,.status.unavailable{background:var(--red-light);color:var(--red);}
+.status.cancelled{background:#f0f0f0;color:#888;}
+.status.active{background:var(--green-light);color:var(--green);}
+.status.maintenance{background:var(--amber-light);color:var(--amber);}
+
+.form-group{margin-bottom:18px;}
+.form-label{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:7px;letter-spacing:.4px;text-transform:uppercase;}
+.form-control{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);transition:border-color .2s;outline:none;}
+.form-control:focus{border-color:var(--green);}
+textarea.form-control{resize:vertical;min-height:90px;}
+
+.role-tag{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.3px;}
+.role-tag.superuser{background:#ede8fb;color:#4a35b0;}
+.role-tag.facility_manager{background:var(--green-light);color:var(--green);}
+.role-tag.technical_staff{background:#e8f0fb;color:#1a4a9e;}
+.role-tag.standard_user{background:#f0f0f0;color:#555;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-pill">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    {% now "N j, Y" %}, <b>{% now "l"|upper %}</b>
+  </div>
+  <div class="topbar-pill">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    {% now "g:i A" %} (GMT+8)
+  </div>
+  <div class="topbar-spacer"></div>
+  {% if user.is_authenticated %}
+  <a href="{% url 'notifications' %}" class="topbar-icon">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    {% if unread_notifications %}<span class="notif-badge">{{ unread_notifications }}</span>{% endif %}
+  </a>
+  <div class="topbar-user">
+    <div class="topbar-avatar"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+    <div>
+      <div class="topbar-name">{{ user.get_full_name|default:user.username }}</div>
+      <div class="topbar-role">{{ user.get_role_display }}</div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="layout">
+  {% if user.is_authenticated %}
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-circle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="logo-name">OLFU</div>
+      <div class="logo-sub">Facility Management System</div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-label">Menu</div>
+
+      <a href="{% url 'dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </a>
+
+      <!-- Module 1: Facility Management -->
+      <a href="{% url 'facilities' %}" class="nav-item {% if 'facilit' in request.resolver_match.url_name %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        Facilities
+      </a>
+
+      <!-- Module 2: Bookings -->
+      <a href="{% url 'bookings' %}" class="nav-item {% if 'booking' in request.resolver_match.url_name %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Bookings
+        {% if pending_bookings and user.can_manage_facilities %}<span class="nav-badge">{{ pending_bookings }}</span>{% endif %}
+      </a>
+
+      <!-- Module 3: User Management (Superuser only) -->
+      {% if user.can_manage_users %}
+      <a href="{% url 'user_list' %}" class="nav-item {% if 'user' in request.resolver_match.url_name %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        User Management
+      </a>
+      {% endif %}
+
+      <!-- Module 4: Notifications -->
+      <a href="{% url 'notifications' %}" class="nav-item {% if request.resolver_match.url_name == 'notifications' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Notifications
+        {% if unread_notifications %}<span class="nav-badge">{{ unread_notifications }}</span>{% endif %}
+      </a>
+
+      <!-- Module 5: Reports (Facility Manager only) -->
+      {% if user.can_view_reports %}
+      <a href="{% url 'reports' %}" class="nav-item {% if request.resolver_match.url_name == 'reports' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Reports & Analytics
+      </a>
+      {% endif %}
+
+      <div class="nav-label" style="margin-top:12px;">General</div>
+      <a href="{% url 'logout' %}" class="nav-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Logout
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="main">
+    {% if messages %}
+    <div class="messages">
+      {% for message in messages %}
+      <div class="msg {{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
+</div>
+</body>
+</html>
