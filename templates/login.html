@@ -37,6 +37,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);min-height:100vh;disp
 .form-control{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);transition:border-color .2s;outline:none;}
 .form-control:focus{border-color:var(--green);background:#fff;}
 
+.password-wrapper{position:relative;}
+.password-wrapper .form-control{padding-right:50px;}
+.btn-show-pass{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;color:var(--muted);cursor:pointer;padding:4px;outline:none;}
+.btn-show-pass:hover{color:var(--green);}
+
 .btn-login{width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:background .2s;margin-top:8px;}
 .btn-login:hover{background:var(--green-dark);}
 
@@ -49,7 +54,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);min-height:100vh;disp
   <!-- LEFT -->
   <div class="login-left">
     <div class="logo-circle">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      <img src="/media/OLFU_official_logo.png" alt="OLFU Logo" style="width: 100%; height: 100%; object-fit: cover; object-position: center;">
     </div>
     <div class="login-title">OLFU</div>
     <div class="login-sub">Facility Management System</div>
@@ -89,12 +94,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);min-height:100vh;disp
       </div>
       <div class="form-group">
         <label class="form-label">Password</label>
-        <input type="password" name="password" class="form-control" placeholder="Enter your password" autocomplete="current-password" required/>
+        <div class="password-wrapper">
+          <input type="password" name="password" id="password-field" class="form-control" placeholder="Enter your password" autocomplete="current-password" required/>
+          <button type="button" class="btn-show-pass" id="toggle-password" tabindex="-1">Show</button>
+        </div>
       </div>
       <button type="submit" class="btn-login">Sign In</button>
     </form>
   </div>
 </div>
 
+<script>
+  const togglePassword = document.getElementById('toggle-password');
+  const passwordField = document.getElementById('password-field');
+
+  togglePassword.addEventListener('click', function () {
+    const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+    passwordField.setAttribute('type', type);
+    this.textContent = type === 'password' ? 'Show' : 'Hide';
+  });
+</script>
 </body>
 </html>
