@@ -181,6 +181,7 @@ document.getElementById('event-modal').addEventListener('click', function(e) {
       <div style="font-size:11px;color:var(--muted);">pax</div>
     </div>
     <span class="status {{ booking.status }}">{{ booking.get_status_display }}</span>
+    <a href="{% url 'booking_detail' booking.pk %}" style="color:var(--green);font-weight:500;font-size:12px;margin-left:4px;margin-right:4px;">View Booking →</a>
     <div class="booking-actions">
       {% if user.can_manage_facilities and booking.status == 'pending' %}
       <form method="POST" action="{% url 'booking_action' booking.pk %}" style="display:inline;">

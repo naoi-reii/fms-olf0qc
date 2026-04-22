@@ -5,7 +5,7 @@
   <a href="{% url 'bookings' %}" style="font-size:13px;color:var(--muted);">← Back to Bookings</a>
 </div>
 
-<div style="max-width:560px;">
+<div>
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
     <div style="font-family:'DM Serif Display',serif;font-size:24px;">Booking #{{ booking.pk }}</div>
     <span class="status {{ booking.status }}" style="font-size:13px;">{{ booking.get_status_display }}</span>
@@ -57,10 +57,20 @@
         <div style="font-size:14px;">{{ booking.created_at|date:"N j, Y g:i A" }}</div>
       </div>
     </div>
-    {% if booking.purpose %}
-    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Purpose</div>
-      <div style="font-size:14px;line-height:1.6;">{{ booking.purpose }}</div>
+    {% if booking.purpose or booking.equipment_needed %}
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:32px;">
+      {% if booking.purpose %}
+      <div style="flex:1;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Purpose</div>
+        <div style="font-size:14px;line-height:1.6;">{{ booking.purpose }}</div>
+      </div>
+      {% endif %}
+      {% if booking.equipment_needed %}
+      <div style="flex:1;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Equipment Request</div>
+        <div style="font-size:14px;line-height:1.6;">{{ booking.equipment_needed }}</div>
+      </div>
+      {% endif %}
     </div>
     {% endif %}
   </div>
