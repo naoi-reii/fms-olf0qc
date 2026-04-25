@@ -1,0 +1,23 @@
+Recurring Booking Feature
+
+- On the Bookings page, add a “Recurring Booking” button beside the “New Booking” button.
+
+- When clicked, it should open the same form used for creating a new booking, with additional fields for setting a recurring schedule. This includes:
+
+Occurrence (e.g., Monday, Tuesday, etc.)
+Time range (e.g., 7:00 AM – 10:00 AM)
+Start Date (e.g., start of the semester)
+End Date (e.g., end of the semester)
+
+Example: Every Tuesday from 7:00 AM to 10:00 AM, from Month A to Month B.
+
+**Behavior and Rules**
+
+- Recurring bookings must be saved as a single grouped booking (batch) to avoid clutter in the bookings list and allow easier management and editing.
+- The system must check for scheduling conflicts across all generated occurrences before saving.
+- Recurring bookings can be edited or deleted by:
+    The user who created them
+    Admins
+    Facility managers
+
+- When editing, users can modify all booking details, but cannot set dates or times past the current date and time.

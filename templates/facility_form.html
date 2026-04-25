@@ -72,11 +72,11 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <div class="form-group">
           <label class="form-label">Available From</label>
-          <input type="time" name="availability_start" class="form-control" value="{{ facility.availability_start|default:'' }}"/>
+          <input type="time" name="availability_start" class="form-control" value="{{ facility.availability_start|default:'' }}" min="07:00" max="20:00"/>
         </div>
         <div class="form-group">
           <label class="form-label">Available Until</label>
-          <input type="time" name="availability_end" class="form-control" value="{{ facility.availability_end|default:'' }}"/>
+          <input type="time" name="availability_end" class="form-control" value="{{ facility.availability_end|default:'' }}" min="07:00" max="20:00"/>
         </div>
       </div>
 
