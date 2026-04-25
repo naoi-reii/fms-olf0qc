@@ -380,7 +380,16 @@ def booking_detail_view(request, pk):
         else:
             eq_items = [x.strip() for x in booking.equipment_needed.split(',') if x.strip() in EQUIPMENT_CHOICES]
             eq_notes = booking.equipment_needed if not eq_items else ''
-    return render(request, 'booking_detail.html', {'booking': booking, 'eq_items': eq_items, 'eq_notes': eq_notes})
+
+    available_alternatives = []
+    if booking.status in [Booking.PENDING, Booking.APPROVED]:
+        all_active_facilities = Facility.objects.filter(status='active').exclude(pk=booking.facility.pk)
+        for alt_fac in all_active_facilities:
+            conflicts = check_booking_conflict(alt_fac, booking.date, booking.start_time, booking.end_time)
+            if not conflicts:
+                available_alternatives.append(alt_fac)
+
+    return render(request, 'booking_detail.html', {'booking': booking, 'eq_items': eq_items, 'eq_notes': eq_notes, 'available_alternatives': available_alternatives})
 
 
 @login_required(login_url='login')
@@ -420,6 +429,60 @@ def booking_cancel_view(request, pk):
     return redirect('bookings')
 
 
+@login_required(login_url='login')
+def booking_request_change_view(request, pk):
+    if request.method != 'POST':
+        return redirect('booking_detail', pk=pk)
+
+    booking = get_object_or_404(Booking, pk=pk, booked_by=request.user)
+    if booking.status not in [Booking.PENDING, Booking.APPROVED]:
+        messages.error(request, 'Room changes can only be requested for pending or approved bookings.')
+        return redirect('booking_detail', pk=pk)
+
+    reason = request.POST.get('reason', '').strip()
+    preferred_alt_id = request.POST.get('preferred_alternative')
+
+    if not reason:
+        messages.error(request, 'A reason is required to request a room change.')
+        return redirect('booking_detail', pk=pk)
+
+    preferred_fac = None
+    if preferred_alt_id:
+        preferred_fac = Facility.objects.filter(pk=preferred_alt_id, status='active').first()
+
+    issue = IssueReport.objects.create(
+        facility=booking.facility,
+        reported_by=request.user,
+        booking=booking,
+        category='other',
+        title=f'Room Change Request for Booking #{booking.pk}',
+        description=reason,
+        priority='medium',
+        requesting_room_change=True,
+        status='room_change_requested',
+        preferred_alternative=preferred_fac
+    )
+
+    it_staff = User.objects.filter(role__in=[User.TECHNICAL_STAFF, User.FACILITY_MANAGER, User.SUPERUSER_ROLE])
+    notif_title = f'[ROOM CHANGE] Request for Booking #{booking.pk}'
+    notif_msg = f"{request.user.get_full_name() or request.user.username} requested a room change for their booking at {booking.facility.name}.\nReason: {reason}"
+    if preferred_fac:
+        notif_msg += f"\nPreferred Alternative: {preferred_fac.name}"
+
+    for staff in it_staff:
+        Notification.objects.create(
+            recipient=staff,
+            notif_type='announcement',
+            title=notif_title,
+            message=notif_msg,
+            sent_by=request.user,
+            booking=booking
+        )
+
+    messages.success(request, 'Room change request submitted successfully.')
+    return redirect('booking_detail', pk=pk)
+
+
 # ── Issue Reports ──────────────────────────────────────────────
 
 @login_required(login_url='login')
@@ -442,12 +505,39 @@ def issue_report_create_view(request):
     my_bookings = Booking.objects.filter(booked_by=request.user, status__in=['approved', 'pending']).order_by('-date')[:10]
     preselect_facility = request.GET.get('facility', '')
     preselect_booking = request.GET.get('booking', '')
+    request_room_change = request.GET.get('request_room_change') == 'true'
+
+    booking = None
+    if preselect_booking:
+        try:
+            booking = Booking.objects.get(pk=preselect_booking)
+            if not preselect_facility:
+                preselect_facility = str(booking.facility.pk)
+            
+            # Filter available rooms for this booking's time slot
+            conflicting_facility_ids = Booking.objects.filter(
+                date=booking.date,
+                status__in=[Booking.PENDING, Booking.APPROVED]
+            ).filter(
+                start_time__lt=booking.end_time,
+                end_time__gt=booking.start_time
+            ).exclude(pk=booking.pk).values_list('facility_id', flat=True)
+            
+            available = Facility.objects.filter(status='active').exclude(pk__in=conflicting_facility_ids)
+        except Booking.DoesNotExist:
+            pass
 
     if request.method == 'POST':
         fac_id = request.POST.get('facility')
         if not fac_id:
             messages.error(request, 'Please select a facility.')
-            return render(request, 'issue_report_form.html', {'facilities': facilities, 'available_facilities': available, 'my_bookings': my_bookings, 'category_choices': IssueReport.CATEGORY_CHOICES, 'priority_choices': IssueReport.PRIORITY_CHOICES, 'preselect_facility': preselect_facility, 'preselect_booking': preselect_booking})
+            return render(request, 'issue_report_form.html', {
+                'facilities': facilities, 'available_facilities': available, 
+                'my_bookings': my_bookings, 'category_choices': IssueReport.CATEGORY_CHOICES, 
+                'priority_choices': IssueReport.PRIORITY_CHOICES, 'preselect_facility': preselect_facility, 
+                'preselect_booking': preselect_booking, 'request_room_change': request_room_change,
+                'booking': booking
+            })
 
         facility = get_object_or_404(Facility, pk=fac_id)
         issue = IssueReport(
@@ -466,6 +556,7 @@ def issue_report_create_view(request):
         if preferred_id:
             try: issue.preferred_alternative = Facility.objects.get(pk=preferred_id)
             except Facility.DoesNotExist: pass
+        
         if issue.requesting_room_change:
             issue.status = 'room_change_requested'
         issue.save()
@@ -482,7 +573,13 @@ def issue_report_create_view(request):
         messages.success(request, f'Issue reported successfully. IT Department has been notified.')
         return redirect('issue_list')
 
-    return render(request, 'issue_report_form.html', {'facilities': facilities, 'available_facilities': available, 'my_bookings': my_bookings, 'category_choices': IssueReport.CATEGORY_CHOICES, 'priority_choices': IssueReport.PRIORITY_CHOICES, 'preselect_facility': preselect_facility, 'preselect_booking': preselect_booking})
+    return render(request, 'issue_report_form.html', {
+        'facilities': facilities, 'available_facilities': available, 
+        'my_bookings': my_bookings, 'category_choices': IssueReport.CATEGORY_CHOICES, 
+        'priority_choices': IssueReport.PRIORITY_CHOICES, 'preselect_facility': preselect_facility, 
+        'preselect_booking': preselect_booking, 'request_room_change': request_room_change,
+        'booking': booking
+    })
 
 
 @login_required(login_url='login')
@@ -501,17 +598,17 @@ def issue_detail_view(request, pk):
 def issue_update_view(request, pk):
     issue = get_object_or_404(IssueReport, pk=pk)
     if request.method == 'POST':
+        original_status = issue.status
         issue.status = request.POST.get('status', issue.status)
         issue.resolution_notes = request.POST.get('resolution_notes', issue.resolution_notes).strip()
         issue.assigned_to = request.user
 
-        if request.POST.get('approve_room_change') and issue.requesting_room_change:
+        if issue.requesting_room_change and issue.status == 'room_change_approved' and original_status != 'room_change_approved':
             new_fac_id = request.POST.get('new_facility')
             if new_fac_id:
                 new_fac = get_object_or_404(Facility, pk=new_fac_id)
                 issue.room_change_new_facility = new_fac
                 issue.room_change_approved_by = request.user
-                issue.status = 'room_change_approved'
                 # Update the related booking
                 if issue.booking:
                     issue.booking.facility = new_fac
@@ -524,10 +621,11 @@ def issue_update_view(request, pk):
                 issue.facility.save()
                 messages.success(request, f'Room changed to {new_fac.name}. Original room set to maintenance.')
             else:
+                issue.status = original_status
                 messages.error(request, 'Please select a new room.')
                 return redirect('issue_detail', pk=pk)
 
-        if issue.status == 'resolved':
+        if issue.status == 'resolved' and original_status != 'resolved':
             issue.resolved_at = timezone.now()
             Notification.objects.create(recipient=issue.reported_by, notif_type='confirmation', title=f'Issue Resolved: {issue.title}', message=f'Your reported issue "{issue.title}" in {issue.facility.name} has been resolved. {issue.resolution_notes}', sent_by=request.user)
 

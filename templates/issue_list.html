@@ -34,7 +34,7 @@
 
 <div style="display:flex;flex-direction:column;gap:10px;">
   {% for issue in issues %}
-  <div class="card" style="border-left:4px solid {% if issue.priority == 'urgent' %}var(--red){% elif issue.priority == 'high' %}var(--amber){% elif issue.priority == 'medium' %}#1a4a9e{% else %}var(--border){% endif %};">
+  <div class="card">
     <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
@@ -82,7 +82,7 @@
         <a href="{% url 'issue_update' issue.pk %}" class="btn btn-primary btn-sm">Manage</a>
         {% endif %}
         {% if user.is_it_staff and issue.requesting_room_change and issue.status == 'room_change_requested' %}
-        <a href="{% url 'issue_approve_room_change' issue.pk %}" class="btn btn-sm" style="background:#ede8fb;border:1.5px solid #9c8de8;color:#4a35b0;">Approve Change</a>
+        <a href="{% url 'issue_detail' issue.pk %}" class="btn btn-sm" style="background:#ede8fb;border:1.5px solid #9c8de8;color:#4a35b0;">Review Change</a>
         {% endif %}
       </div>
     </div>

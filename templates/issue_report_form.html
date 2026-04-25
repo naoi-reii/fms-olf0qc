@@ -8,6 +8,23 @@
   </div>
 
   <div class="card">
+    {% if booking %}
+    <!-- Booking Context Summary -->
+    <div style="background:var(--green-light);border:1px solid var(--green);border-radius:12px;padding:16px;margin-bottom:24px;display:flex;align-items:flex-start;gap:16px;">
+      
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:600;color:var(--green);margin-bottom:4px;">Reporting for Booking #{{ booking.pk }}</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.5;">
+          <strong>Room:</strong> {{ booking.facility.name }} — {{ booking.facility.floor }}<br>
+          <strong>Schedule:</strong> {{ booking.date }} | {{ booking.start_time|time:"g:i A" }} - {{ booking.end_time|time:"g:i A" }}
+        </div>
+      </div>
+      <div style="font-size:11px;background:white;padding:4px 8px;border-radius:6px;border:1px solid var(--green);color:var(--green);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">
+        {{ booking.get_status_display }}
+      </div>
+    </div>
+    {% endif %}
+
     <form method="POST">
       {% csrf_token %}
 
@@ -15,12 +32,19 @@
 
       <div class="form-group">
         <label class="form-label">Facility / Room <span style="color:var(--red);">*</span></label>
-        <select name="facility" class="form-control" required>
-          <option value="">Select room...</option>
-          {% for f in facilities %}
-          <option value="{{ f.pk }}" {% if preselect_facility == f.pk|stringformat:'s' %}selected{% endif %}>{{ f.name }} — {{ f.floor }}</option>
-          {% endfor %}
-        </select>
+        {% if booking %}
+          <div class="form-control" style="background:var(--bg);color:var(--muted);border-color:var(--border);">
+            {{ booking.facility.name }} — {{ booking.facility.floor }}
+          </div>
+          <input type="hidden" name="facility" value="{{ booking.facility.pk }}"/>
+        {% else %}
+          <select name="facility" class="form-control" required>
+            <option value="">Select room...</option>
+            {% for f in facilities %}
+            <option value="{{ f.pk }}" {% if preselect_facility == f.pk|stringformat:'s' %}selected{% endif %}>{{ f.name }} — {{ f.floor }}</option>
+            {% endfor %}
+          </select>
+        {% endif %}
       </div>
 
       <div class="form-group">
@@ -58,14 +82,21 @@
         </div>
         <div class="form-group">
           <label class="form-label">Related Booking <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
-          <select name="booking" class="form-control">
-            <option value="">None</option>
-            {% for b in my_bookings %}
-            <option value="{{ b.pk }}" {% if preselect_booking == b.pk|stringformat:'s' %}selected{% endif %}>
-              #{{ b.pk }} — {{ b.facility.name }} {{ b.date }}
-            </option>
-            {% endfor %}
-          </select>
+          {% if booking %}
+            <div class="form-control" style="background:var(--bg);color:var(--muted);border-color:var(--border);">
+              #{{ booking.pk }} — {{ booking.facility.name }} {{ booking.date }}
+            </div>
+            <input type="hidden" name="booking" value="{{ booking.pk }}"/>
+          {% else %}
+            <select name="booking" class="form-control">
+              <option value="">None</option>
+              {% for b in my_bookings %}
+              <option value="{{ b.pk }}" {% if preselect_booking == b.pk|stringformat:'s' %}selected{% endif %}>
+                #{{ b.pk }} — {{ b.facility.name }} {{ b.date }}
+              </option>
+              {% endfor %}
+            </select>
+          {% endif %}
         </div>
       </div>
 
@@ -73,11 +104,11 @@
       <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.8px;margin:20px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Room Change Request <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted);">(optional)</span></div>
 
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-        <input type="checkbox" name="requesting_room_change" id="rcb" style="width:16px;height:16px;accent-color:var(--green);" onchange="document.getElementById('rc-section').style.display=this.checked?'block':'none'"/>
+        <input type="checkbox" name="requesting_room_change" id="rcb" style="width:16px;height:16px;accent-color:var(--green);" onchange="document.getElementById('rc-section').style.display=this.checked?'block':'none'" {% if request_room_change %}checked{% endif %}/>
         <label for="rcb" style="font-size:14px;cursor:pointer;font-weight:500;">I need to move to a different room</label>
       </div>
 
-      <div id="rc-section" style="display:none;">
+      <div id="rc-section" style="display:{% if request_room_change %}block{% else %}none{% endif %};">
         <div class="form-group">
           <label class="form-label">Preferred Alternative Room <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
           <select name="preferred_alternative" class="form-control">

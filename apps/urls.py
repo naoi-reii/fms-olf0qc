@@ -23,6 +23,7 @@ urlpatterns = [
     path('bookings/<int:pk>/', views.booking_detail_view, name='booking_detail'),
     path('bookings/<int:pk>/action/', views.booking_approve_view, name='booking_action'),
     path('bookings/<int:pk>/cancel/', views.booking_cancel_view, name='booking_cancel'),
+    path('bookings/<int:pk>/request-change/', views.booking_request_change_view, name='booking_request_change'),
     path('bookings/check-conflict/', views.booking_check_conflict, name='booking_check_conflict'),
 
     # Issue Reports

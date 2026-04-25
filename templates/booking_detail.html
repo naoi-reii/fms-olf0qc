@@ -6,9 +6,14 @@
 </div>
 
 <div>
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
-    <div style="font-family:'DM Serif Display',serif;font-size:24px;">Booking #{{ booking.pk }}</div>
-    <span class="status {{ booking.status }}" style="font-size:13px;">{{ booking.get_status_display }}</span>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="font-family:'DM Serif Display',serif;font-size:24px;">Booking #{{ booking.pk }}</div>
+      <span class="status {{ booking.status }}" style="font-size:13px;">{{ booking.get_status_display }}</span>
+    </div>
+    {% if booking.booked_by == user and booking.status in 'pending,approved' %}
+    <a href="{% url 'issue_report_create' %}?booking={{ booking.pk }}&request_room_change=true" class="btn btn-primary" style="font-size:13px;padding:8px 16px;">Request Room Change</a>
+    {% endif %}
   </div>
 
   <div class="card" style="margin-bottom:14px;">
@@ -75,7 +80,7 @@
     {% endif %}
   </div>
 
-  <div style="display:flex;gap:10px;">
+  <div style="display:flex;gap:10px;margin-top:20px;">
     {% if user.can_manage_facilities and booking.status == 'pending' %}
     <form method="POST" action="{% url 'booking_action' booking.pk %}">
       {% csrf_token %}<input type="hidden" name="action" value="approve"/>

@@ -9,7 +9,7 @@
 
   <!-- LEFT: Issue Detail -->
   <div>
-    <div class="card" style="margin-bottom:14px;border-left:4px solid {% if issue.priority == 'urgent' %}var(--red){% elif issue.priority == 'high' %}var(--amber){% else %}var(--green){% endif %};">
+    <div class="card" style="margin-bottom:14px;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
         <div>
           <div style="font-family:'DM Serif Display',serif;font-size:20px;">{{ issue.title }}</div>
@@ -96,10 +96,10 @@
         {% if issue.requesting_room_change and issue.status == 'room_change_requested' %}
         <div class="form-group">
           <label class="form-label">Assign New Room</label>
-          <select name="new_facility" class="form-control">
+          <select name="new_facility" class="form-control" id="new_facility_select">
             <option value="">Select available room...</option>
             {% for f in available_facilities %}
-            <option value="{{ f.pk }}">{{ f.name }} — {{ f.floor }} (Cap: {{ f.capacity }})</option>
+            <option value="{{ f.pk }}" {% if issue.preferred_alternative and issue.preferred_alternative.pk == f.pk %}selected{% endif %}>{{ f.name }} — {{ f.floor }} (Cap: {{ f.capacity }})</option>
             {% endfor %}
           </select>
         </div>
@@ -110,9 +110,6 @@
         </div>
         <div style="display:flex;gap:8px;">
           <button type="submit" class="btn btn-primary">Update</button>
-          {% if issue.requesting_room_change and issue.status == 'room_change_requested' %}
-          <button type="submit" name="approve_room_change" value="1" class="btn" style="background:#ede8fb;border:1.5px solid #9c8de8;color:#4a35b0;">Approve Room Change</button>
-          {% endif %}
         </div>
       </form>
     </div>
