@@ -168,7 +168,15 @@ async function check() {
   const st = document.getElementById('st').value;
   const et = document.getElementById('et').value;
   if (!fac||!dt||!st||!et) return;
+  
+  const now = new Date();
+  const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
   if (st >= et) { document.getElementById('cr').innerHTML='<div style="color:var(--red);font-size:13px;margin-top:8px;">End time must be after start time.</div>'; return; }
+  if (dt < todayStr) { document.getElementById('cr').innerHTML='<div style="color:var(--red);font-size:13px;margin-top:8px;">Cannot book a past date.</div>'; return; }
+  if (dt === todayStr && st < timeStr) { document.getElementById('cr').innerHTML='<div style="color:var(--red);font-size:13px;margin-top:8px;">Cannot book a past time today.</div>'; return; }
+
   document.getElementById('ck').classList.add('show');
   document.getElementById('ok').classList.remove('show');
   document.getElementById('cr').innerHTML = '';
@@ -176,6 +184,7 @@ async function check() {
     const r = await fetch(CURL,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({facility_id:fac,date:dt,start_time:st,end_time:et})});
     const d = await r.json();
     document.getElementById('ck').classList.remove('show');
+    if (d.error) { document.getElementById('cr').innerHTML=`<div style="color:var(--red);font-size:13px;margin-top:8px;">${d.error}</div>`; return; }
     if (d.conflict) {
       let h = `<div class="conflict-box" style="margin-top:10px;"><div class="conflict-title">⚠ Time Conflict</div>`;
       d.conflicts.forEach(c=>{h+=`<div style="padding:5px 0;font-size:13px;">Booked by <strong>${c.booked_by}</strong> — ${c.start_time.slice(0,5)}–${c.end_time.slice(0,5)}</div>`;});

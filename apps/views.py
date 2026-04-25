@@ -306,8 +306,13 @@ def booking_check_conflict(request):
         facility = Facility.objects.get(pk=data.get('facility_id'))
         date = datetime.date.fromisoformat(data.get('date'))
         start_time = datetime.time.fromisoformat(data.get('start_time'))
-        end_time = datetime.time.fromisoformat(data.get('end_time'))
+        end_time = datetime.time.fromisoformat(end_str := data.get('end_time'))
+        
+        now = timezone.localtime(timezone.now())
         if start_time >= end_time: return JsonResponse({'conflict': False, 'error': 'End time must be after start time.'})
+        if date < now.date(): return JsonResponse({'conflict': False, 'error': 'Cannot book a past date.'})
+        if date == now.date() and start_time < now.time(): return JsonResponse({'conflict': False, 'error': 'Cannot book a past time today.'})
+        
         conflicts = check_booking_conflict(facility, date, start_time, end_time, data.get('exclude_pk'))
         if conflicts:
             suggestions = []
@@ -346,8 +351,11 @@ def booking_create_view(request):
             date = datetime.date.fromisoformat(date_str)
             start_time = datetime.time.fromisoformat(start_str)
             end_time = datetime.time.fromisoformat(end_str)
+            
+            now = timezone.localtime(timezone.now())
             if start_time >= end_time: messages.error(request, 'End time must be after start time.')
-            elif date < datetime.date.today(): messages.error(request, 'Cannot book a past date.')
+            elif date < now.date(): messages.error(request, 'Cannot book a past date.')
+            elif date == now.date() and start_time < now.time(): messages.error(request, 'Cannot book a past time today.')
             else:
                 conflicts = check_booking_conflict(facility, date, start_time, end_time)
                 if conflicts and not force:
