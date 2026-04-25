@@ -174,6 +174,7 @@ document.getElementById('event-modal').addEventListener('click', function(e) {
         {{ booking.date }} &nbsp;·&nbsp; {{ booking.start_time|time:"g:i A" }} – {{ booking.end_time|time:"g:i A" }}
         {% if user.can_manage_facilities %} &nbsp;·&nbsp; {{ booking.booked_by.get_full_name|default:booking.booked_by.username }}{% endif %}
         {% if booking.purpose %} &nbsp;·&nbsp; {{ booking.purpose|truncatechars:40 }}{% endif %}
+        {% if booking.equipment_needed %} &nbsp;·&nbsp; <button onclick="showEquipment('{{ booking.equipment_needed|escapejs }}')" style="background:none;border:none;padding:0;color:var(--green);font-size:12px;font-weight:600;cursor:pointer;">Needs Equipment</button>{% endif %}
       </div>
     </div>
     <div style="text-align:center;min-width:60px;">
@@ -208,6 +209,31 @@ document.getElementById('event-modal').addEventListener('click', function(e) {
   </div>
   {% endif %}
 </div>
+
+<!-- Equipment Detail Modal -->
+<div id="equipment-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--white);border-radius:14px;padding:24px;max-width:380px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.15);">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-size:16px;font-weight:600;">Equipment Requested</div>
+      <button onclick="closeEqModal()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:20px;line-height:1;">&times;</button>
+    </div>
+    <div id="eq-modal-body" style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap;"></div>
+  </div>
+</div>
+
+<script>
+function showEquipment(equipment) {
+  document.getElementById('eq-modal-body').textContent = equipment;
+  document.getElementById('equipment-modal').style.display = 'flex';
+}
+function closeEqModal() {
+  document.getElementById('equipment-modal').style.display = 'none';
+}
+document.getElementById('equipment-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeEqModal();
+});
+</script>
+
 {% endif %}
 
 {% endblock %}
