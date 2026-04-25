@@ -124,6 +124,48 @@ document.addEventListener('DOMContentLoaded', function() {
     height: 'auto',
   });
   cal.render();
+
+  const toggleContainer = document.createElement('div');
+  toggleContainer.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;">
+      <span>View All</span>
+      <label class="switch" style="position:relative;display:inline-block;width:34px;height:20px;margin:0;">
+        <input type="checkbox" id="own-bookings-toggle" style="opacity:0;width:0;height:0;">
+        <span class="slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#ccc;transition:.4s;border-radius:20px;">
+          <span style="position:absolute;content:'';height:14px;width:14px;left:3px;bottom:3px;background-color:white;transition:.4s;border-radius:50%;" id="slider-ball"></span>
+        </span>
+      </label>
+      <span>Own</span>
+    </div>
+  `;
+
+  const rightChunk = document.querySelector('.fc-toolbar-chunk:last-child');
+  if (rightChunk) {
+      rightChunk.style.display = 'flex';
+      rightChunk.style.flexDirection = 'column';
+      rightChunk.style.alignItems = 'flex-end';
+      rightChunk.insertBefore(toggleContainer.firstElementChild, rightChunk.firstChild);
+  }
+
+  const toggleInput = document.getElementById('own-bookings-toggle');
+  if (toggleInput) {
+    const sliderBall = document.getElementById('slider-ball');
+    const sliderBg = toggleInput.nextElementSibling;
+    
+    toggleInput.addEventListener('change', function(e) {
+      if(e.target.checked) {
+        sliderBall.style.transform = 'translateX(14px)';
+        sliderBg.style.backgroundColor = 'var(--green, #1a6b3a)';
+        cal.removeAllEventSources();
+        cal.addEventSource(bookings.filter(b => b.is_own));
+      } else {
+        sliderBall.style.transform = 'translateX(0)';
+        sliderBg.style.backgroundColor = '#ccc';
+        cal.removeAllEventSources();
+        cal.addEventSource(bookings);
+      }
+    });
+  }
 });
 
 function closeModal() {
