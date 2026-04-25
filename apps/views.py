@@ -151,10 +151,7 @@ def dashboard_view(request):
         'total_facilities': Facility.objects.count(),
         'active_facilities': Facility.objects.filter(status='active').count(),
         'bookings_today': Booking.objects.filter(date=today).count(),
-        'pending_bookings': Booking.objects.filter(status='pending').count(),
         'recent_bookings': Booking.objects.select_related('facility', 'booked_by').all()[:5],
-        'unread_notifications': request.user.notifications.filter(is_read=False).count(),
-        'open_issues': IssueReport.objects.filter(status='open').count() if request.user.is_it_staff() else IssueReport.objects.filter(reported_by=request.user, status='open').count(),
     }
     return render(request, 'dashboard.html', context)
 
@@ -584,13 +581,14 @@ def issue_report_create_view(request):
 
 @login_required(login_url='login')
 def issue_detail_view(request, pk):
-    if request.user.is_it_staff():
-        issue = get_object_or_404(IssueReport, pk=pk)
-    else:
-        issue = get_object_or_404(IssueReport, pk=pk, reported_by=request.user)
+    issue = get_object_or_404(IssueReport, pk=pk) if request.user.is_it_staff() else get_object_or_404(IssueReport, pk=pk, reported_by=request.user)
+    
+    # Mark messages as read for the current user
+    Message.objects.filter(issue_report=issue, recipient=request.user, is_read=False).update(is_read=True)
+    
     msgs = Message.objects.filter(issue_report=issue).select_related('sender').order_by('created_at')
     available_facilities = Facility.objects.filter(status='active').exclude(pk=issue.facility.pk)
-    return render(request, 'issue_detail.html', {'issue': issue, 'messages': msgs, 'available_facilities': available_facilities, 'status_choices': IssueReport.STATUS_CHOICES})
+    return render(request, 'issue_detail.html', {'issue': issue, 'message_thread': msgs, 'available_facilities': available_facilities, 'status_choices': IssueReport.STATUS_CHOICES})
 
 
 @login_required(login_url='login')
@@ -854,7 +852,7 @@ def reports_view(request):
     type_data = list(Booking.objects.filter(date__gte=date_from, date__lte=date_to).values('facility__facility_type').annotate(count=Count('id')).order_by('-count'))
     floor_data = list(Booking.objects.filter(date__gte=date_from, date__lte=date_to).values('facility__floor').annotate(count=Count('id')).order_by('facility__floor'))
     top_bookers = list(Booking.objects.filter(date__gte=date_from, date__lte=date_to).values('booked_by__first_name','booked_by__last_name','booked_by__username','booked_by__role').annotate(count=Count('id')).order_by('-count')[:5])
-    context = {'date_from': date_from.isoformat(), 'date_to': date_to.isoformat(), 'facility_type_filter': facility_type_filter, 'floor_filter': floor_filter, 'floor_choices': Facility.FLOOR_CHOICES, 'type_choices': Facility.TYPE_CHOICES, 'total_bookings': total, 'approved': approved, 'pending': pending, 'rejected': rejected, 'cancelled': cancelled, 'approval_rate': approval_rate, 'total_facilities': Facility.objects.count(), 'active_facilities': Facility.objects.filter(status='active').count(), 'maintenance_facilities': Facility.objects.filter(status='maintenance').count(), 'total_users': User.objects.count(), 'open_issues': IssueReport.objects.filter(status='open').count(), 'status_chart_json': json.dumps({'labels': ['Approved','Pending','Rejected','Cancelled'], 'data': [approved,pending,rejected,cancelled], 'colors': ['#1a6b3a','#b7770d','#c0392b','#888780']}), 'daily_labels_json': json.dumps(daily_labels), 'daily_data_json': json.dumps(daily_data), 'hour_labels_json': json.dumps([f'{h}:00' for h in range(7,21)]), 'hour_data_json': json.dumps(hour_data), 'type_chart_json': json.dumps({'labels': [t['facility__facility_type'].replace('_',' ').title() for t in type_data], 'data': [t['count'] for t in type_data]}), 'floor_chart_json': json.dumps({'labels': [f['facility__floor'] or 'Unknown' for f in floor_data], 'data': [f['count'] for f in floor_data]}), 'facility_usage': facility_usage, 'top_bookers': top_bookers}
+    context = {'date_from': date_from.isoformat(), 'date_to': date_to.isoformat(), 'facility_type_filter': facility_type_filter, 'floor_filter': floor_filter, 'floor_choices': Facility.FLOOR_CHOICES, 'type_choices': Facility.TYPE_CHOICES, 'total_bookings': total, 'approved': approved, 'pending': pending, 'rejected': rejected, 'cancelled': cancelled, 'approval_rate': approval_rate, 'total_facilities': Facility.objects.count(), 'active_facilities': Facility.objects.filter(status='active').count(), 'maintenance_facilities': Facility.objects.filter(status='maintenance').count(), 'total_users': User.objects.count(), 'status_chart_json': json.dumps({'labels': ['Approved','Pending','Rejected','Cancelled'], 'data': [approved,pending,rejected,cancelled], 'colors': ['#1a6b3a','#b7770d','#c0392b','#888780']}), 'daily_labels_json': json.dumps(daily_labels), 'daily_data_json': json.dumps(daily_data), 'hour_labels_json': json.dumps([f'{h}:00' for h in range(7,21)]), 'hour_data_json': json.dumps(hour_data), 'type_chart_json': json.dumps({'labels': [t['facility__facility_type'].replace('_',' ').title() for t in type_data], 'data': [t['count'] for t in type_data]}), 'floor_chart_json': json.dumps({'labels': [f['facility__floor'] or 'Unknown' for f in floor_data], 'data': [f['count'] for f in floor_data]}), 'facility_usage': facility_usage, 'top_bookers': top_bookers}
     return render(request, 'reports.html', context)
 
 

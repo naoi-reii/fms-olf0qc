@@ -119,7 +119,7 @@
     <div class="card">
       <div class="card-title" style="margin-bottom:14px;">Messages</div>
       <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
-        {% for msg in messages %}
+        {% for msg in message_thread %}
         <div style="display:flex;gap:10px;{% if msg.sender == user %}flex-direction:row-reverse;{% endif %}">
           <div style="width:32px;height:32px;border-radius:50%;background:{% if msg.sender == user %}var(--green){% else %}#e8f0fb{% endif %};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:{% if msg.sender == user %}#fff{% else %}#1a4a9e{% endif %};flex-shrink:0;">
             {{ msg.sender.first_name|first|upper }}{{ msg.sender.last_name|first|upper }}{% if not msg.sender.first_name %}{{ msg.sender.username|first|upper }}{% endif %}
