@@ -21,7 +21,7 @@
 <div>
   <div style="margin-bottom:24px;">
     <a href="{% url 'bookings' %}" style="font-size:13px;color:var(--muted);">← Back to Bookings</a>
-    <div style="font-family:'DM Serif Display',serif;font-size:24px;margin-top:8px;">New Booking Request</div>
+    <div style="font-family:'DM Serif Display',serif;font-size:24px;margin-top:8px;">{% if is_edit %}Edit Recurring Booking{% else %}New Booking Request{% endif %}</div>
     <div style="font-size:13px;color:var(--muted);margin-top:4px;">Equipment requests will be forwarded to the IT Department.</div>
   </div>
 
@@ -70,10 +70,40 @@
         </select>
       </div>
 
+      {% if is_recurring %}
+      <input type="hidden" name="is_recurring" id="is_recurring" value="on">
+      {% if is_edit %}
+      <input type="hidden" name="exclude_group_pk" id="exclude_group_pk" value="{{ form_data.group_id|default:'' }}">
+      {% endif %}
+      <div class="form-group">
+        <label class="form-label">Occurrence (Day of Week) <span style="color:var(--red);">*</span></label>
+        <select name="day_of_week" id="dow" class="form-control" required>
+          <option value="">Select a day...</option>
+          <option value="0" {% if form_data.day_of_week == '0' %}selected{% endif %}>Monday</option>
+          <option value="1" {% if form_data.day_of_week == '1' %}selected{% endif %}>Tuesday</option>
+          <option value="2" {% if form_data.day_of_week == '2' %}selected{% endif %}>Wednesday</option>
+          <option value="3" {% if form_data.day_of_week == '3' %}selected{% endif %}>Thursday</option>
+          <option value="4" {% if form_data.day_of_week == '4' %}selected{% endif %}>Friday</option>
+          <option value="5" {% if form_data.day_of_week == '5' %}selected{% endif %}>Saturday</option>
+          <option value="6" {% if form_data.day_of_week == '6' %}selected{% endif %}>Sunday</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-group">
+          <label class="form-label">Start Date <span style="color:var(--red);">*</span></label>
+          <input type="date" name="start_date" id="sdt" class="form-control" value="{{ form_data.start_date|default:today }}" min="{{ today }}" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Date <span style="color:var(--red);">*</span></label>
+          <input type="date" name="end_date" id="edt" class="form-control" value="{{ form_data.end_date|default:'' }}" min="{{ today }}" required/>
+        </div>
+      </div>
+      {% else %}
       <div class="form-group">
         <label class="form-label">Date <span style="color:var(--red);">*</span></label>
         <input type="date" name="date" id="dt" class="form-control" value="{{ form_data.date|default:today }}" min="{{ today }}" required/>
       </div>
+      {% endif %}
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <div class="form-group">
@@ -164,10 +194,23 @@ const CSRF = document.querySelector('[name=csrfmiddlewaretoken]').value;
 let tmr;
 async function check() {
   const fac = document.getElementById('fac').value;
-  const dt = document.getElementById('dt').value;
+  const is_recurring = document.getElementById('is_recurring') ? true : false;
+  
+  let dt, sdt, edt, dow;
+  if (is_recurring) {
+    sdt = document.getElementById('sdt').value;
+    edt = document.getElementById('edt').value;
+    dow = document.getElementById('dow').value;
+  } else {
+    dt = document.getElementById('dt').value;
+  }
+  
   const st = document.getElementById('st').value;
   const et = document.getElementById('et').value;
-  if (!fac||!dt||!st||!et) return;
+  
+  if (!fac||!st||!et) return;
+  if (is_recurring && (!sdt||!edt||!dow)) return;
+  if (!is_recurring && !dt) return;
   
   const now = new Date();
   const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
@@ -178,20 +221,39 @@ async function check() {
     document.getElementById('cr').innerHTML='<div style="color:var(--red);font-size:13px;margin-top:8px;">Time must be between 7:00 AM and 8:00 PM.</div>';
     return;
   }
-  if (dt < todayStr) { document.getElementById('cr').innerHTML='<div style="color:var(--red);font-size:13px;margin-top:8px;">Cannot book a past date.</div>'; return; }
-  if (dt === todayStr && st < timeStr) { document.getElementById('cr').innerHTML='<div style="color:var(--red);font-size:13px;margin-top:8px;">Cannot book a past time today.</div>'; return; }
+  
+  if (is_recurring) {
+    if (sdt < todayStr) { document.getElementById('cr').innerHTML='<div style="color:var(--red);font-size:13px;margin-top:8px;">Cannot book a past start date.</div>'; return; }
+    if (edt < sdt) { document.getElementById('cr').innerHTML='<div style="color:var(--red);font-size:13px;margin-top:8px;">End date must be after start date.</div>'; return; }
+  } else {
+    if (dt < todayStr) { document.getElementById('cr').innerHTML='<div style="color:var(--red);font-size:13px;margin-top:8px;">Cannot book a past date.</div>'; return; }
+  }
 
   document.getElementById('ck').classList.add('show');
   document.getElementById('ok').classList.remove('show');
   document.getElementById('cr').innerHTML = '';
+  
+  const payload = { facility_id: fac, start_time: st, end_time: et, is_recurring: is_recurring };
+  const excludeGroupEl = document.getElementById('exclude_group_pk');
+  if (excludeGroupEl) {
+    payload.exclude_group_pk = excludeGroupEl.value;
+  }
+  if (is_recurring) {
+    payload.start_date = sdt;
+    payload.end_date = edt;
+    payload.day_of_week = dow;
+  } else {
+    payload.date = dt;
+  }
+  
   try {
-    const r = await fetch(CURL,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({facility_id:fac,date:dt,start_time:st,end_time:et})});
+    const r = await fetch(CURL,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify(payload)});
     const d = await r.json();
     document.getElementById('ck').classList.remove('show');
     if (d.error) { document.getElementById('cr').innerHTML=`<div style="color:var(--red);font-size:13px;margin-top:8px;">${d.error}</div>`; return; }
     if (d.conflict) {
       let h = `<div class="conflict-box" style="margin-top:10px;"><div class="conflict-title">⚠ Time Conflict</div>`;
-      d.conflicts.forEach(c=>{h+=`<div style="padding:5px 0;font-size:13px;">Booked by <strong>${c.booked_by}</strong> — ${c.start_time.slice(0,5)}–${c.end_time.slice(0,5)}</div>`;});
+      d.conflicts.forEach(c=>{h+=`<div style="padding:5px 0;font-size:13px;">Booked by <strong>${c.booked_by}</strong> on ${c.date} — ${c.start_time.slice(0,5)}–${c.end_time.slice(0,5)}</div>`;});
       if(d.suggestions?.length){h+=`<div style="margin-top:8px;font-size:12px;font-weight:600;color:var(--green);">Try these slots:</div>`;d.suggestions.forEach(s=>{h+=`<span class="suggestion-pill" onclick="apply('${s.start}','${s.end}')">${s.start}–${s.end}</span>`;});}
       h+=`</div>`;
       document.getElementById('cr').innerHTML = h;
@@ -200,6 +262,6 @@ async function check() {
 }
 function apply(s,e){document.getElementById('st').value=s;document.getElementById('et').value=e;check();}
 function dbc(){clearTimeout(tmr);tmr=setTimeout(check,600);}
-['fac','dt','st','et'].forEach(id=>document.getElementById(id)?.addEventListener('change',dbc));
+['fac','dt','sdt','edt','dow','st','et'].forEach(id=>document.getElementById(id)?.addEventListener('change',dbc));
 </script>
 {% endblock %}

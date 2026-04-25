@@ -91,6 +91,40 @@ class Facility(models.Model):
         ordering = ['building', 'floor', 'name']
 
 
+class BookingGroup(models.Model):
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    REJECTED = 'rejected'
+    CANCELLED = 'cancelled'
+    STATUS_CHOICES = [(PENDING,'Pending'),(APPROVED,'Approved'),(REJECTED,'Rejected'),(CANCELLED,'Cancelled')]
+
+    facility = models.ForeignKey(Facility, on_delete=models.CASCADE, related_name='booking_groups')
+    booked_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='booking_groups')
+    day_of_week = models.IntegerField() # 0 = Monday, 6 = Sunday
+    start_date = models.DateField()
+    end_date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    purpose = models.TextField(blank=True)
+    number_of_attendees = models.PositiveIntegerField(default=1)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=PENDING)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_booking_groups')
+    equipment_needed = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Group: {self.facility.name} — {self.get_day_of_week_display()}s ({self.start_date} to {self.end_date})"
+        
+    def get_day_of_week_display(self):
+        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        return days[self.day_of_week] if 0 <= self.day_of_week <= 6 else 'Unknown'
+
+    class Meta:
+        ordering = ['-created_at']
+
+
 class Booking(models.Model):
     PENDING = 'pending'
     APPROVED = 'approved'
@@ -98,6 +132,7 @@ class Booking(models.Model):
     CANCELLED = 'cancelled'
     STATUS_CHOICES = [(PENDING,'Pending'),(APPROVED,'Approved'),(REJECTED,'Rejected'),(CANCELLED,'Cancelled')]
 
+    group = models.ForeignKey(BookingGroup, on_delete=models.CASCADE, null=True, blank=True, related_name='bookings')
     facility = models.ForeignKey(Facility, on_delete=models.CASCADE, related_name='bookings')
     booked_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bookings')
     date = models.DateField()

@@ -8,7 +8,7 @@ from functools import wraps
 import datetime
 import json
 import csv
-from .models import User, Facility, Booking, Notification, Announcement, NotificationTemplate, ActivityLog, IssueReport, Message
+from .models import User, Facility, Booking, BookingGroup, Notification, Announcement, NotificationTemplate, ActivityLog, IssueReport, Message
 
 EQUIPMENT_CHOICES = [
     'HDMI Cable','Projector Remote','Microphone','Extension Cord',
@@ -279,8 +279,10 @@ def room_schedule_view(request):
 
 # ── Module 2: Booking ─────────────────────────────────────────
 
-def check_booking_conflict(facility, date, start_time, end_time, exclude_pk=None):
+def check_booking_conflict(facility, date, start_time, end_time, exclude_pk=None, exclude_group_pk=None):
     conflicts = Booking.objects.filter(facility=facility, date=date, status__in=[Booking.PENDING, Booking.APPROVED]).exclude(pk=exclude_pk or 0)
+    if exclude_group_pk:
+        conflicts = conflicts.exclude(group_id=exclude_group_pk)
     return [b for b in conflicts if b.start_time < end_time and b.end_time > start_time]
 
 
@@ -289,13 +291,37 @@ def bookings_view(request):
     view_mode = request.GET.get('view', 'list')
     status_filter = request.GET.get('status', '')
     facility_filter = request.GET.get('facility', '')
-    bookings = Booking.objects.select_related('facility', 'booked_by').all() if request.user.can_manage_facilities() else Booking.objects.filter(booked_by=request.user).select_related('facility')
-    if status_filter: bookings = bookings.filter(status=status_filter)
-    if facility_filter: bookings = bookings.filter(facility_id=facility_filter)
+    
+    if request.user.can_manage_facilities():
+        bookings_qs = Booking.objects.filter(group__isnull=True).select_related('facility', 'booked_by')
+        groups_qs = BookingGroup.objects.select_related('facility', 'booked_by')
+    else:
+        bookings_qs = Booking.objects.filter(booked_by=request.user, group__isnull=True).select_related('facility')
+        groups_qs = BookingGroup.objects.filter(booked_by=request.user).select_related('facility')
+        
+    if status_filter: 
+        bookings_qs = bookings_qs.filter(status=status_filter)
+        groups_qs = groups_qs.filter(status=status_filter)
+    if facility_filter: 
+        bookings_qs = bookings_qs.filter(facility_id=facility_filter)
+        groups_qs = groups_qs.filter(facility_id=facility_filter)
+        
+    bookings_list = list(bookings_qs)
+    groups_list = list(groups_qs)
+    for g in groups_list:
+        g.is_group = True
+    
+    combined_bookings = bookings_list + groups_list
+    combined_bookings.sort(key=lambda x: x.created_at, reverse=True)
+
     today = datetime.date.today()
     cal = [{'id': b.pk, 'title': f'{b.facility.name} — {b.booked_by.get_full_name() or b.booked_by.username}', 'start': f'{b.date}T{b.start_time}', 'end': f'{b.date}T{b.end_time}', 'color': '#1a6b3a' if b.status == 'approved' else '#b7770d', 'status': b.status, 'facility': b.facility.name, 'booked_by': b.booked_by.get_full_name() or b.booked_by.username, 'purpose': b.purpose} for b in Booking.objects.select_related('facility', 'booked_by').filter(status__in=['pending', 'approved'])]
-    stats = {'total': Booking.objects.count() if request.user.can_manage_facilities() else Booking.objects.filter(booked_by=request.user).count(), 'pending': Booking.objects.filter(status='pending').count() if request.user.can_manage_facilities() else Booking.objects.filter(booked_by=request.user, status='pending').count(), 'approved': Booking.objects.filter(status='approved').count() if request.user.can_manage_facilities() else Booking.objects.filter(booked_by=request.user, status='approved').count(), 'today': Booking.objects.filter(date=today).count()}
-    return render(request, 'bookings.html', {'bookings': bookings, 'calendar_bookings_json': json.dumps(cal), 'view_mode': view_mode, 'status_filter': status_filter, 'facility_filter': facility_filter, 'facilities': Facility.objects.filter(status='active'), 'stats': stats, 'today': today})
+    
+    total = Booking.objects.filter(group__isnull=True).count() + BookingGroup.objects.count() if request.user.can_manage_facilities() else Booking.objects.filter(booked_by=request.user, group__isnull=True).count() + BookingGroup.objects.filter(booked_by=request.user).count()
+    pending = Booking.objects.filter(status='pending', group__isnull=True).count() + BookingGroup.objects.filter(status='pending').count() if request.user.can_manage_facilities() else Booking.objects.filter(booked_by=request.user, status='pending', group__isnull=True).count() + BookingGroup.objects.filter(booked_by=request.user, status='pending').count()
+    approved = Booking.objects.filter(status='approved', group__isnull=True).count() + BookingGroup.objects.filter(status='approved').count() if request.user.can_manage_facilities() else Booking.objects.filter(booked_by=request.user, status='approved', group__isnull=True).count() + BookingGroup.objects.filter(booked_by=request.user, status='approved').count()
+    stats = {'total': total, 'pending': pending, 'approved': approved, 'today': Booking.objects.filter(date=today).count()}
+    return render(request, 'bookings.html', {'bookings': combined_bookings, 'calendar_bookings_json': json.dumps(cal), 'view_mode': view_mode, 'status_filter': status_filter, 'facility_filter': facility_filter, 'facilities': Facility.objects.filter(status='active'), 'stats': stats, 'today': today})
 
 
 @login_required(login_url='login')
@@ -304,26 +330,57 @@ def booking_check_conflict(request):
     try:
         data = json.loads(request.body)
         facility = Facility.objects.get(pk=data.get('facility_id'))
-        date = datetime.date.fromisoformat(data.get('date'))
+        is_recurring = data.get('is_recurring')
         start_time = datetime.time.fromisoformat(data.get('start_time'))
         end_time = datetime.time.fromisoformat(end_str := data.get('end_time'))
         
         now = timezone.localtime(timezone.now())
         if start_time >= end_time: return JsonResponse({'conflict': False, 'error': 'End time must be after start time.'})
-        if date < now.date(): return JsonResponse({'conflict': False, 'error': 'Cannot book a past date.'})
-        if date == now.date() and start_time < now.time(): return JsonResponse({'conflict': False, 'error': 'Cannot book a past time today.'})
+
+        dates_to_check = []
+        if is_recurring:
+            start_date = datetime.date.fromisoformat(data.get('start_date'))
+            end_date = datetime.date.fromisoformat(data.get('end_date'))
+            day_of_week = int(data.get('day_of_week'))
+            
+            if start_date < now.date(): return JsonResponse({'conflict': False, 'error': 'Cannot book a past date.'})
+            if end_date < start_date: return JsonResponse({'conflict': False, 'error': 'End date must be after start date.'})
+            
+            current_date = start_date
+            while current_date <= end_date:
+                if current_date.weekday() == day_of_week:
+                    dates_to_check.append(current_date)
+                current_date += datetime.timedelta(days=1)
+                
+            if not dates_to_check: return JsonResponse({'conflict': False, 'error': 'No matching days found in the given date range.'})
+        else:
+            date = datetime.date.fromisoformat(data.get('date'))
+            if date < now.date(): return JsonResponse({'conflict': False, 'error': 'Cannot book a past date.'})
+            dates_to_check.append(date)
         
-        conflicts = check_booking_conflict(facility, date, start_time, end_time, data.get('exclude_pk'))
-        if conflicts:
+        all_conflicts = []
+        for date in dates_to_check:
+            conflicts = check_booking_conflict(facility, date, start_time, end_time, data.get('exclude_pk'), data.get('exclude_group_pk'))
+            all_conflicts.extend(conflicts)
+            
+        if all_conflicts:
             suggestions = []
             for offset in [1, 2, 3]:
-                alt_start = (datetime.datetime.combine(date, end_time) + datetime.timedelta(hours=offset)).time()
-                duration = datetime.datetime.combine(date, end_time) - datetime.datetime.combine(date, start_time)
-                alt_end = (datetime.datetime.combine(date, alt_start) + duration).time()
-                if not check_booking_conflict(facility, date, alt_start, alt_end, data.get('exclude_pk')) and alt_end.hour < 21:
+                alt_start = (datetime.datetime.combine(dates_to_check[0], end_time) + datetime.timedelta(hours=offset)).time()
+                duration = datetime.datetime.combine(dates_to_check[0], end_time) - datetime.datetime.combine(dates_to_check[0], start_time)
+                alt_end = (datetime.datetime.combine(dates_to_check[0], alt_start) + duration).time()
+                
+                alt_conflict_found = False
+                for date in dates_to_check:
+                    if check_booking_conflict(facility, date, alt_start, alt_end, data.get('exclude_pk')):
+                        alt_conflict_found = True
+                        break
+                        
+                if not alt_conflict_found and alt_end.hour < 21:
                     suggestions.append({'start': str(alt_start)[:5], 'end': str(alt_end)[:5]})
                     if len(suggestions) >= 2: break
-            return JsonResponse({'conflict': True, 'conflicts': [{'booked_by': c.booked_by.get_full_name() or c.booked_by.username, 'start_time': str(c.start_time), 'end_time': str(c.end_time), 'status': c.get_status_display()} for c in conflicts], 'suggestions': suggestions})
+                    
+            return JsonResponse({'conflict': True, 'conflicts': [{'booked_by': c.booked_by.get_full_name() or c.booked_by.username, 'date': str(c.date), 'start_time': str(c.start_time), 'end_time': str(c.end_time), 'status': c.get_status_display()} for c in all_conflicts], 'suggestions': suggestions})
         return JsonResponse({'conflict': False})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
@@ -336,7 +393,14 @@ def booking_create_view(request):
     preselect_facility = request.GET.get('facility', '')
     if request.method == 'POST':
         facility_id = request.POST.get('facility')
+        
+        is_recurring = request.POST.get('is_recurring') == 'on'
+        
         date_str = request.POST.get('date')
+        start_date_str = request.POST.get('start_date')
+        end_date_str = request.POST.get('end_date')
+        day_of_week_str = request.POST.get('day_of_week')
+        
         start_str = request.POST.get('start_time')
         end_str = request.POST.get('end_time')
         purpose = request.POST.get('purpose', '').strip()
@@ -346,31 +410,84 @@ def booking_create_view(request):
         equipment_needed = request.POST.get('equipment_needed', '').strip()
         all_eq = (', '.join(equipment_items) + (' | ' + equipment_needed if equipment_needed else '')) if equipment_items else equipment_needed
 
-        if facility_id and date_str and start_str and end_str:
+        if facility_id and start_str and end_str and ((not is_recurring and date_str) or (is_recurring and start_date_str and end_date_str and day_of_week_str)):
             facility = get_object_or_404(Facility, pk=facility_id)
-            date = datetime.date.fromisoformat(date_str)
             start_time = datetime.time.fromisoformat(start_str)
             end_time = datetime.time.fromisoformat(end_str)
-            
             now = timezone.localtime(timezone.now())
-            if start_time >= end_time: messages.error(request, 'End time must be after start time.')
-            elif date < now.date(): messages.error(request, 'Cannot book a past date.')
-            elif date == now.date() and start_time < now.time(): messages.error(request, 'Cannot book a past time today.')
+            
+            if start_time >= end_time:
+                messages.error(request, 'End time must be after start time.')
             else:
-                conflicts = check_booking_conflict(facility, date, start_time, end_time)
-                if conflicts and not force:
-                    return render(request, 'booking_form.html', {'facilities': facilities, 'has_conflict': True, 'conflict_info': conflicts, 'form_data': request.POST, 'preselect': facility_id, 'equipment_choices': EQUIPMENT_CHOICES, 'today': datetime.date.today().isoformat()})
-                booking = Booking.objects.create(facility=facility, booked_by=request.user, date=date, start_time=start_time, end_time=end_time, purpose=purpose, number_of_attendees=attendees, equipment_needed=all_eq)
-                send_notification(request.user, 'confirmation', f'Booking Submitted: {facility.name}', f'Your booking for {facility.name} on {date} is pending approval.', booking=booking)
-                if all_eq:
-                    it_staff = User.objects.filter(role__in=[User.TECHNICAL_STAFF, User.FACILITY_MANAGER, User.SUPERUSER_ROLE])
-                    for staff in it_staff:
-                        Notification.objects.create(recipient=staff, notif_type='confirmation', title=f'Equipment Request: {facility.name}', message=f'{request.user.get_full_name() or request.user.username} needs: {all_eq}\nFor: {facility.name} on {date} at {start_time.strftime("%I:%M %p")}', booking=booking, sent_by=request.user)
-                log_activity(request.user, 'book', f'Booked {facility.name} on {date}', request)
-                messages.success(request, f'Booking #{booking.pk} submitted!' + (f' Equipment request sent to IT Department.' if all_eq else ''))
-                return redirect('bookings')
-        else: messages.error(request, 'All fields are required.')
-    return render(request, 'booking_form.html', {'facilities': facilities, 'preselect': preselect_facility, 'today': datetime.date.today().isoformat(), 'equipment_choices': EQUIPMENT_CHOICES})
+                dates_to_book = []
+                has_error = False
+                
+                if is_recurring:
+                    start_date = datetime.date.fromisoformat(start_date_str)
+                    end_date = datetime.date.fromisoformat(end_date_str)
+                    day_of_week = int(day_of_week_str)
+                    
+                    if start_date < now.date(): 
+                        messages.error(request, 'Cannot book a past date.')
+                        has_error = True
+                    elif end_date < start_date:
+                        messages.error(request, 'End date must be after start date.')
+                        has_error = True
+                    else:
+                        current_date = start_date
+                        while current_date <= end_date:
+                            if current_date.weekday() == day_of_week:
+                                dates_to_book.append(current_date)
+                            current_date += datetime.timedelta(days=1)
+                        if not dates_to_book:
+                            messages.error(request, 'No matching days found in the given date range.')
+                            has_error = True
+                else:
+                    date = datetime.date.fromisoformat(date_str)
+                    if date < now.date():
+                        messages.error(request, 'Cannot book a past date.')
+                        has_error = True
+                    else:
+                        dates_to_book.append(date)
+                
+                if not has_error:
+                    all_conflicts = []
+                    for d in dates_to_book:
+                        all_conflicts.extend(check_booking_conflict(facility, d, start_time, end_time))
+                        
+                    if all_conflicts and not force:
+                        return render(request, 'booking_form.html', {'facilities': facilities, 'has_conflict': True, 'conflict_info': all_conflicts, 'form_data': request.POST, 'preselect': facility_id, 'equipment_choices': EQUIPMENT_CHOICES, 'today': datetime.date.today().isoformat(), 'is_recurring': is_recurring})
+                        
+                    if is_recurring:
+                        group = BookingGroup.objects.create(
+                            facility=facility, booked_by=request.user, day_of_week=day_of_week,
+                            start_date=start_date, end_date=end_date, start_time=start_time, end_time=end_time,
+                            purpose=purpose, number_of_attendees=attendees, equipment_needed=all_eq
+                        )
+                        for d in dates_to_book:
+                            Booking.objects.create(group=group, facility=facility, booked_by=request.user, date=d, start_time=start_time, end_time=end_time, purpose=purpose, number_of_attendees=attendees, equipment_needed=all_eq)
+                        send_notification(request.user, 'confirmation', f'Recurring Booking Submitted: {facility.name}', f'Your recurring booking for {facility.name} starting {start_date} is pending approval.', booking=None)
+                        if all_eq:
+                            it_staff = User.objects.filter(role__in=[User.TECHNICAL_STAFF, User.FACILITY_MANAGER, User.SUPERUSER_ROLE])
+                            for staff in it_staff:
+                                Notification.objects.create(recipient=staff, notif_type='confirmation', title=f'Equipment Request: {facility.name} (Recurring)', message=f'{request.user.get_full_name() or request.user.username} needs: {all_eq}\nFor: {facility.name} recurring starting {start_date}', sent_by=request.user)
+                        log_activity(request.user, 'book', f'Booked {facility.name} recurring starting {start_date}', request)
+                        messages.success(request, f'Recurring booking submitted!' + (f' Equipment request sent to IT Department.' if all_eq else ''))
+                    else:
+                        booking = Booking.objects.create(facility=facility, booked_by=request.user, date=dates_to_book[0], start_time=start_time, end_time=end_time, purpose=purpose, number_of_attendees=attendees, equipment_needed=all_eq)
+                        send_notification(request.user, 'confirmation', f'Booking Submitted: {facility.name}', f'Your booking for {facility.name} on {dates_to_book[0]} is pending approval.', booking=booking)
+                        if all_eq:
+                            it_staff = User.objects.filter(role__in=[User.TECHNICAL_STAFF, User.FACILITY_MANAGER, User.SUPERUSER_ROLE])
+                            for staff in it_staff:
+                                Notification.objects.create(recipient=staff, notif_type='confirmation', title=f'Equipment Request: {facility.name}', message=f'{request.user.get_full_name() or request.user.username} needs: {all_eq}\nFor: {facility.name} on {dates_to_book[0]} at {start_time.strftime("%I:%M %p")}', booking=booking, sent_by=request.user)
+                        log_activity(request.user, 'book', f'Booked {facility.name} on {dates_to_book[0]}', request)
+                        messages.success(request, f'Booking #{booking.pk} submitted!' + (f' Equipment request sent to IT Department.' if all_eq else ''))
+                        
+                    return redirect('bookings')
+        else: messages.error(request, 'All required fields must be filled.')
+    
+    is_recurring_get = request.GET.get('recurring') == '1' or request.POST.get('is_recurring') == 'on'
+    return render(request, 'booking_form.html', {'facilities': facilities, 'preselect': preselect_facility, 'today': datetime.date.today().isoformat(), 'equipment_choices': EQUIPMENT_CHOICES, 'is_recurring': is_recurring_get})
 
 
 @login_required(login_url='login')
@@ -438,6 +555,169 @@ def booking_cancel_view(request, pk):
         messages.success(request, 'Booking cancelled.')
     else: messages.error(request, 'Only pending bookings can be cancelled.')
     return redirect('bookings')
+
+
+@login_required(login_url='login')
+def booking_group_action_view(request, pk):
+    group = get_object_or_404(BookingGroup, pk=pk)
+    action = request.POST.get('action')
+    if action in ['approve', 'reject']:
+        if not request.user.can_approve_bookings():
+            messages.error(request, 'Only Facility Managers can approve or reject bookings.')
+            return redirect('bookings')
+        
+        if action == 'approve':
+            group.status = BookingGroup.APPROVED; group.approved_by = request.user; group.save()
+            group.bookings.update(status=Booking.APPROVED, approved_by=request.user)
+            send_notification(group.booked_by, 'approval', f'Recurring Booking Approved: {group.facility.name}', '', sent_by=request.user)
+            log_activity(request.user, 'approve', f'Approved Group #{pk}', request)
+            messages.success(request, f'Recurring Booking #{pk} approved.')
+        elif action == 'reject':
+            group.status = BookingGroup.REJECTED; group.save()
+            group.bookings.update(status=Booking.REJECTED)
+            send_notification(group.booked_by, 'rejection', f'Recurring Booking Rejected: {group.facility.name}', '', sent_by=request.user)
+            log_activity(request.user, 'reject', f'Rejected Group #{pk}', request)
+            messages.warning(request, f'Recurring Booking #{pk} rejected.')
+    return redirect('bookings')
+
+
+@login_required(login_url='login')
+def booking_group_cancel_view(request, pk):
+    group = get_object_or_404(BookingGroup, pk=pk)
+    if not (request.user == group.booked_by or request.user.can_manage_facilities()):
+        messages.error(request, 'You do not have permission to cancel this.')
+        return redirect('bookings')
+        
+    if group.status in [BookingGroup.PENDING, BookingGroup.APPROVED]:
+        group.status = BookingGroup.CANCELLED; group.save()
+        
+        now = timezone.localtime(timezone.now())
+        future_bookings = group.bookings.filter(date__gte=now.date(), status__in=[Booking.PENDING, Booking.APPROVED])
+        for b in future_bookings:
+            if b.date == now.date() and b.start_time < now.time():
+                continue
+            b.status = Booking.CANCELLED
+            b.save()
+            
+        send_notification(group.booked_by, 'cancellation', f'Recurring Booking Cancelled: {group.facility.name}', '')
+        log_activity(request.user, 'cancel', f'Cancelled Group #{pk}', request)
+        messages.success(request, 'Recurring booking cancelled (future dates).')
+    else: messages.error(request, 'Only pending or approved bookings can be cancelled.')
+    return redirect('bookings')
+
+
+@login_required(login_url='login')
+def booking_group_edit_view(request, pk):
+    group = get_object_or_404(BookingGroup, pk=pk)
+    if not (request.user == group.booked_by or request.user.can_manage_facilities()):
+        messages.error(request, 'You do not have permission to edit this booking.')
+        return redirect('bookings')
+        
+    facilities = Facility.objects.filter(status='active')
+    
+    if request.method == 'POST':
+        facility_id = request.POST.get('facility')
+        
+        start_date_str = request.POST.get('start_date')
+        end_date_str = request.POST.get('end_date')
+        day_of_week_str = request.POST.get('day_of_week')
+        
+        start_str = request.POST.get('start_time')
+        end_str = request.POST.get('end_time')
+        purpose = request.POST.get('purpose', '').strip()
+        attendees = request.POST.get('number_of_attendees', 1)
+        force = request.POST.get('force_submit') == '1'
+        equipment_items = request.POST.getlist('equipment_items')
+        equipment_needed = request.POST.get('equipment_needed', '').strip()
+        all_eq = (', '.join(equipment_items) + (' | ' + equipment_needed if equipment_needed else '')) if equipment_items else equipment_needed
+
+        if facility_id and start_str and end_str and start_date_str and end_date_str and day_of_week_str:
+            facility = get_object_or_404(Facility, pk=facility_id)
+            start_time = datetime.time.fromisoformat(start_str)
+            end_time = datetime.time.fromisoformat(end_str)
+            start_date = datetime.date.fromisoformat(start_date_str)
+            end_date = datetime.date.fromisoformat(end_date_str)
+            day_of_week = int(day_of_week_str)
+            now = timezone.localtime(timezone.now())
+            
+            if start_time >= end_time:
+                messages.error(request, 'End time must be after start time.')
+            elif start_date < now.date() and start_date != group.start_date: 
+                messages.error(request, 'Cannot change start date to a past date.')
+            elif end_date < now.date() and end_date != group.end_date:
+                messages.error(request, 'Cannot change end date to a past date.')
+            elif end_date < start_date:
+                messages.error(request, 'End date must be after start date.')
+            else:
+                dates_to_book = []
+                current_date = max(start_date, now.date())
+                while current_date <= end_date:
+                    if current_date.weekday() == day_of_week:
+                        if current_date == now.date() and start_time < now.time():
+                            pass
+                        else:
+                            dates_to_book.append(current_date)
+                    current_date += datetime.timedelta(days=1)
+                
+                all_conflicts = []
+                for d in dates_to_book:
+                    all_conflicts.extend(check_booking_conflict(facility, d, start_time, end_time, exclude_pk=None))
+                    
+                filtered_conflicts = [c for c in all_conflicts if c.group_id != group.pk]
+                
+                if filtered_conflicts and not force:
+                    form_data = request.POST.copy()
+                    form_data['equipment_items'] = equipment_items
+                    return render(request, 'booking_form.html', {'facilities': facilities, 'has_conflict': True, 'conflict_info': filtered_conflicts, 'form_data': form_data, 'preselect': facility_id, 'equipment_choices': EQUIPMENT_CHOICES, 'today': datetime.date.today().isoformat(), 'is_recurring': True, 'is_edit': True})
+                
+                group.facility = facility
+                group.start_date = start_date
+                group.end_date = end_date
+                group.start_time = start_time
+                group.end_time = end_time
+                group.day_of_week = day_of_week
+                group.purpose = purpose
+                group.number_of_attendees = attendees
+                group.equipment_needed = all_eq
+                group.save()
+                
+                future_bookings = group.bookings.filter(date__gte=now.date())
+                for b in future_bookings:
+                    if b.date == now.date() and b.start_time < now.time():
+                        continue
+                    b.delete()
+                    
+                for d in dates_to_book:
+                    Booking.objects.create(group=group, facility=facility, booked_by=group.booked_by, date=d, start_time=start_time, end_time=end_time, purpose=purpose, number_of_attendees=attendees, equipment_needed=all_eq, status=group.status, approved_by=group.approved_by)
+                
+                messages.success(request, f'Recurring booking updated.')
+                return redirect('bookings')
+        else: messages.error(request, 'All required fields must be filled.')
+    
+    form_data = {
+        'group_id': str(group.pk),
+        'facility': str(group.facility.pk),
+        'start_date': str(group.start_date),
+        'end_date': str(group.end_date),
+        'start_time': group.start_time.strftime('%H:%M'),
+        'end_time': group.end_time.strftime('%H:%M'),
+        'day_of_week': str(group.day_of_week),
+        'purpose': group.purpose,
+        'number_of_attendees': group.number_of_attendees,
+        'equipment_needed': group.equipment_needed,
+    }
+    
+    if group.equipment_needed:
+        if '|' in group.equipment_needed:
+            parts = group.equipment_needed.split('|', 1)
+            eq_items = [x.strip() for x in parts[0].split(',') if x.strip()]
+            form_data['equipment_needed'] = parts[1].strip()
+        else:
+            eq_items = [x.strip() for x in group.equipment_needed.split(',') if x.strip() in EQUIPMENT_CHOICES]
+            form_data['equipment_needed'] = group.equipment_needed if not eq_items else ''
+        form_data['equipment_items'] = eq_items
+        
+    return render(request, 'booking_form.html', {'facilities': facilities, 'today': datetime.date.today().isoformat(), 'equipment_choices': EQUIPMENT_CHOICES, 'is_recurring': True, 'form_data': form_data, 'is_edit': True})
 
 
 @login_required(login_url='login')
