@@ -81,7 +81,7 @@
   </div>
 
   <div style="display:flex;gap:10px;margin-top:20px;">
-    {% if user.can_manage_facilities and booking.status == 'pending' %}
+    {% if user.can_approve_bookings and booking.status == 'pending' %}
     <form method="POST" action="{% url 'booking_action' booking.pk %}">
       {% csrf_token %}<input type="hidden" name="action" value="approve"/>
       <button type="submit" class="btn btn-primary">Approve</button>

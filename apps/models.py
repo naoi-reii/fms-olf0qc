@@ -36,6 +36,9 @@ class User(AbstractUser):
     def can_manage_facilities(self):
         return self.role in [self.SUPERUSER_ROLE, self.FACILITY_MANAGER, self.TECHNICAL_STAFF] or self.is_superuser
 
+    def can_approve_bookings(self):
+        return self.role in [self.SUPERUSER_ROLE, self.FACILITY_MANAGER] or self.is_superuser
+
     def can_book(self):
         return self.role in [self.SUPERUSER_ROLE, self.FACILITY_MANAGER, self.STANDARD_USER] or self.is_superuser
 

@@ -394,16 +394,22 @@ def booking_detail_view(request, pk):
 def booking_approve_view(request, pk):
     booking = get_object_or_404(Booking, pk=pk)
     action = request.POST.get('action')
-    if action == 'approve':
-        booking.status = Booking.APPROVED; booking.approved_by = request.user; booking.save()
-        send_notification(booking.booked_by, 'approval', f'Booking Approved: {booking.facility.name}', '', booking=booking, sent_by=request.user)
-        log_activity(request.user, 'approve', f'Approved #{pk}', request)
-        messages.success(request, f'Booking #{pk} approved.')
-    elif action == 'reject':
-        booking.status = Booking.REJECTED; booking.save()
-        send_notification(booking.booked_by, 'rejection', f'Booking Rejected: {booking.facility.name}', '', booking=booking, sent_by=request.user)
-        log_activity(request.user, 'reject', f'Rejected #{pk}', request)
-        messages.warning(request, f'Booking #{pk} rejected.')
+    if action in ['approve', 'reject']:
+        if not request.user.can_approve_bookings():
+            messages.error(request, 'Only Facility Managers can approve or reject bookings.')
+            return redirect('booking_detail', pk=pk)
+        
+        if action == 'approve':
+            booking.status = Booking.APPROVED; booking.approved_by = request.user; booking.save()
+            send_notification(booking.booked_by, 'approval', f'Booking Approved: {booking.facility.name}', '', booking=booking, sent_by=request.user)
+            log_activity(request.user, 'approve', f'Approved #{pk}', request)
+            messages.success(request, f'Booking #{pk} approved.')
+        elif action == 'reject':
+            booking.status = Booking.REJECTED; booking.save()
+            send_notification(booking.booked_by, 'rejection', f'Booking Rejected: {booking.facility.name}', '', booking=booking, sent_by=request.user)
+            log_activity(request.user, 'reject', f'Rejected #{pk}', request)
+            messages.warning(request, f'Booking #{pk} rejected.')
+    
     elif action == 'equipment_prepared':
         booking.equipment_status = 'prepared'; booking.save()
         messages.success(request, 'Equipment marked as prepared.')
