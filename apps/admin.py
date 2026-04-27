@@ -1,6 +1,12 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Facility, Booking, Notification
+from .models import User, Facility, Booking, Notification, SystemSetting
+
+
+@admin.register(SystemSetting)
+class SystemSettingAdmin(admin.ModelAdmin):
+    list_display = ('key', 'value', 'updated_at', 'updated_by')
+    search_fields = ('key',)
 
 
 @admin.register(User)

@@ -194,8 +194,54 @@ document.getElementById('event-modal').addEventListener('click', function(e) {
       <option value="{{ f.pk }}" {% if facility_filter == f.pk|stringformat:'s' %}selected{% endif %}>{{ f.name }}</option>
       {% endfor %}
     </select>
-    {% if status_filter or facility_filter %}
-    <a href="?view=list" class="btn btn-outline btn-sm" style="padding:7px 14px;">Clear</a>
+
+    {% if user.can_approve_bookings %}
+    <div style="display:flex;align-items:center;gap:8px;margin-left:12px;padding:4px 12px;background:var(--white);border:1px solid var(--border);border-radius:10px;">
+      <span style="font-size:12px;font-weight:600;color:var(--muted);">Auto Approve</span>
+      <label class="switch">
+        <input type="checkbox" id="auto-approve-toggle" {% if auto_approve_enabled %}checked{% endif %} onchange="toggleAutoApprove(this)">
+        <span class="slider round"></span>
+      </label>
+    </div>
+    <style>
+      .switch { position: relative; display: inline-block; width: 34px; height: 18px; }
+      .switch input { opacity: 0; width: 0; height: 0; }
+      .slider { position: absolute; cursor: pointer; inset: 0; background-color: #ccc; transition: .4s; border-radius: 18px; }
+      .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
+      input:checked + .slider { background-color: var(--green); }
+      input:focus + .slider { box-shadow: 0 0 1px var(--green); }
+      input:checked + .slider:before { transform: translateX(16px); }
+    </style>
+    <script>
+      function toggleAutoApprove(checkbox) {
+        const enabled = checkbox.checked;
+        fetch("{% url 'toggle_auto_approve' %}", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+          },
+          body: JSON.stringify({ enabled: enabled })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Optional: show a small toast or message
+            console.log('Auto-approve ' + (data.enabled ? 'enabled' : 'disabled'));
+          } else {
+            checkbox.checked = !enabled;
+            alert('Error: ' + data.error);
+          }
+        })
+        .catch(error => {
+          checkbox.checked = !enabled;
+          alert('Error: ' + error);
+        });
+      }
+    </script>
+    {% endif %}
+
+    {% if status_filter or facility_filter %}    <a href="?view=list" class="btn btn-outline btn-sm" style="padding:7px 14px;">Clear</a>
     {% endif %}
   </form>
 </div>

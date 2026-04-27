@@ -298,3 +298,13 @@ class ActivityLog(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+class SystemSetting(models.Model):
+    key = models.CharField(max_length=50, unique=True)
+    value = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+
+    def __str__(self):
+        return f"{self.key}: {self.value}"

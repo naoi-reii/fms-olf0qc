@@ -8,7 +8,7 @@ from functools import wraps
 import datetime
 import json
 import csv
-from .models import User, Facility, Booking, BookingGroup, Notification, Announcement, NotificationTemplate, ActivityLog, IssueReport, Message
+from .models import User, Facility, Booking, BookingGroup, Notification, Announcement, NotificationTemplate, ActivityLog, IssueReport, Message, SystemSetting
 
 EQUIPMENT_CHOICES = [
     'HDMI Cable','Projector Remote','Microphone','Extension Cord',
@@ -321,7 +321,40 @@ def bookings_view(request):
     pending = Booking.objects.filter(status='pending', group__isnull=True).count() + BookingGroup.objects.filter(status='pending').count() if request.user.can_manage_facilities() else Booking.objects.filter(booked_by=request.user, status='pending', group__isnull=True).count() + BookingGroup.objects.filter(booked_by=request.user, status='pending').count()
     approved = Booking.objects.filter(status='approved', group__isnull=True).count() + BookingGroup.objects.filter(status='approved').count() if request.user.can_manage_facilities() else Booking.objects.filter(booked_by=request.user, status='approved', group__isnull=True).count() + BookingGroup.objects.filter(booked_by=request.user, status='approved').count()
     stats = {'total': total, 'pending': pending, 'approved': approved, 'today': Booking.objects.filter(date=today).count()}
-    return render(request, 'bookings.html', {'bookings': combined_bookings, 'calendar_bookings_json': json.dumps(cal), 'view_mode': view_mode, 'status_filter': status_filter, 'facility_filter': facility_filter, 'facilities': Facility.objects.filter(status='active'), 'stats': stats, 'today': today})
+    
+    auto_approve, _ = SystemSetting.objects.get_or_create(key='auto_approve_enabled', defaults={'value': False})
+    
+    return render(request, 'bookings.html', {
+        'bookings': combined_bookings, 
+        'calendar_bookings_json': json.dumps(cal), 
+        'view_mode': view_mode, 
+        'status_filter': status_filter, 
+        'facility_filter': facility_filter, 
+        'facilities': Facility.objects.filter(status='active'), 
+        'stats': stats, 
+        'today': today,
+        'auto_approve_enabled': auto_approve.value
+    })
+
+
+@login_required(login_url='login')
+def toggle_auto_approve_view(request):
+    if not request.user.can_approve_bookings():
+        return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            enabled = data.get('enabled', False)
+            setting, _ = SystemSetting.objects.get_or_create(key='auto_approve_enabled')
+            setting.value = enabled
+            setting.updated_by = request.user
+            setting.save()
+            log_activity(request.user, 'edit_user', f'Toggled Auto-Approve: {"ON" if enabled else "OFF"}', request)
+            return JsonResponse({'success': True, 'enabled': setting.value})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=400)
+    return JsonResponse({'success': False, 'error': 'POST required.'}, status=405)
 
 
 @login_required(login_url='login')
@@ -459,29 +492,48 @@ def booking_create_view(request):
                         return render(request, 'booking_form.html', {'facilities': facilities, 'has_conflict': True, 'conflict_info': all_conflicts, 'form_data': request.POST, 'preselect': facility_id, 'equipment_choices': EQUIPMENT_CHOICES, 'today': datetime.date.today().isoformat(), 'is_recurring': is_recurring})
                         
                     if is_recurring:
+                        auto_approve_setting = SystemSetting.objects.filter(key='auto_approve_enabled', value=True).exists()
+                        status = BookingGroup.APPROVED if auto_approve_setting else BookingGroup.PENDING
+                        approved_by = request.user if auto_approve_setting else None
+                        
                         group = BookingGroup.objects.create(
                             facility=facility, booked_by=request.user, day_of_week=day_of_week,
                             start_date=start_date, end_date=end_date, start_time=start_time, end_time=end_time,
-                            purpose=purpose, number_of_attendees=attendees, equipment_needed=all_eq
+                            purpose=purpose, number_of_attendees=attendees, equipment_needed=all_eq,
+                            status=status, approved_by=approved_by
                         )
                         for d in dates_to_book:
-                            Booking.objects.create(group=group, facility=facility, booked_by=request.user, date=d, start_time=start_time, end_time=end_time, purpose=purpose, number_of_attendees=attendees, equipment_needed=all_eq)
-                        send_notification(request.user, 'confirmation', f'Recurring Booking Submitted: {facility.name}', f'Your recurring booking for {facility.name} starting {start_date} is pending approval.', booking=None)
+                            Booking.objects.create(group=group, facility=facility, booked_by=request.user, date=d, start_time=start_time, end_time=end_time, purpose=purpose, number_of_attendees=attendees, equipment_needed=all_eq, status=status, approved_by=approved_by)
+                        
+                        if status == BookingGroup.APPROVED:
+                            send_notification(request.user, 'approval', f'Recurring Booking Approved: {facility.name}', f'Your recurring booking for {facility.name} starting {start_date} has been automatically approved.', booking=None)
+                        else:
+                            send_notification(request.user, 'confirmation', f'Recurring Booking Submitted: {facility.name}', f'Your recurring booking for {facility.name} starting {start_date} is pending approval.', booking=None)
+                            
                         if all_eq:
                             it_staff = User.objects.filter(role__in=[User.TECHNICAL_STAFF, User.FACILITY_MANAGER, User.SUPERUSER_ROLE])
                             for staff in it_staff:
                                 Notification.objects.create(recipient=staff, notif_type='confirmation', title=f'Equipment Request: {facility.name} (Recurring)', message=f'{request.user.get_full_name() or request.user.username} needs: {all_eq}\nFor: {facility.name} recurring starting {start_date}', sent_by=request.user)
-                        log_activity(request.user, 'book', f'Booked {facility.name} recurring starting {start_date}', request)
-                        messages.success(request, f'Recurring booking submitted!' + (f' Equipment request sent to IT Department.' if all_eq else ''))
+                        log_activity(request.user, 'book', f'Booked {facility.name} recurring starting {start_date} (Auto-Approved: {auto_approve_setting})', request)
+                        messages.success(request, (f'Recurring booking auto-approved!' if auto_approve_setting else f'Recurring booking submitted!') + (f' Equipment request sent to IT Department.' if all_eq else ''))
                     else:
-                        booking = Booking.objects.create(facility=facility, booked_by=request.user, date=dates_to_book[0], start_time=start_time, end_time=end_time, purpose=purpose, number_of_attendees=attendees, equipment_needed=all_eq)
-                        send_notification(request.user, 'confirmation', f'Booking Submitted: {facility.name}', f'Your booking for {facility.name} on {dates_to_book[0]} is pending approval.', booking=booking)
+                        auto_approve_setting = SystemSetting.objects.filter(key='auto_approve_enabled', value=True).exists()
+                        status = Booking.APPROVED if auto_approve_setting else Booking.PENDING
+                        approved_by = request.user if auto_approve_setting else None
+                        
+                        booking = Booking.objects.create(facility=facility, booked_by=request.user, date=dates_to_book[0], start_time=start_time, end_time=end_time, purpose=purpose, number_of_attendees=attendees, equipment_needed=all_eq, status=status, approved_by=approved_by)
+                        
+                        if status == Booking.APPROVED:
+                            send_notification(request.user, 'approval', f'Booking Approved: {facility.name}', f'Your booking for {facility.name} on {dates_to_book[0]} has been automatically approved.', booking=booking)
+                        else:
+                            send_notification(request.user, 'confirmation', f'Booking Submitted: {facility.name}', f'Your booking for {facility.name} on {dates_to_book[0]} is pending approval.', booking=booking)
+                            
                         if all_eq:
                             it_staff = User.objects.filter(role__in=[User.TECHNICAL_STAFF, User.FACILITY_MANAGER, User.SUPERUSER_ROLE])
                             for staff in it_staff:
                                 Notification.objects.create(recipient=staff, notif_type='confirmation', title=f'Equipment Request: {facility.name}', message=f'{request.user.get_full_name() or request.user.username} needs: {all_eq}\nFor: {facility.name} on {dates_to_book[0]} at {start_time.strftime("%I:%M %p")}', booking=booking, sent_by=request.user)
-                        log_activity(request.user, 'book', f'Booked {facility.name} on {dates_to_book[0]}', request)
-                        messages.success(request, f'Booking #{booking.pk} submitted!' + (f' Equipment request sent to IT Department.' if all_eq else ''))
+                        log_activity(request.user, 'book', f'Booked {facility.name} on {dates_to_book[0]} (Auto-Approved: {auto_approve_setting})', request)
+                        messages.success(request, (f'Booking #{booking.pk} auto-approved!' if auto_approve_setting else f'Booking #{booking.pk} submitted!') + (f' Equipment request sent to IT Department.' if all_eq else ''))
                         
                     return redirect('bookings')
         else: messages.error(request, 'All required fields must be filled.')

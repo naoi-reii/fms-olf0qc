@@ -24,6 +24,7 @@ urlpatterns = [
     path('bookings/<int:pk>/', views.booking_detail_view, name='booking_detail'),
     path('bookings/<int:pk>/action/', views.booking_approve_view, name='booking_action'),
     path('bookings/<int:pk>/cancel/', views.booking_cancel_view, name='booking_cancel'),
+    path('bookings/toggle-auto-approve/', views.toggle_auto_approve_view, name='toggle_auto_approve'),
     path('bookings/group/<int:pk>/edit/', views.booking_group_edit_view, name='booking_group_edit'),
     path('bookings/group/<int:pk>/action/', views.booking_group_action_view, name='booking_group_action'),
     path('bookings/group/<int:pk>/cancel/', views.booking_group_cancel_view, name='booking_group_cancel'),
