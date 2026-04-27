@@ -34,10 +34,15 @@
     <div class="card-title" style="margin-bottom:14px;">Your Access</div>
     <div style="display:flex;flex-direction:column;gap:9px;font-size:13px;">
 
-      {% if user.can_manage_facilities %}
+      {% if user.can_edit_facility_details %}
       <div style="display:flex;align-items:center;gap:8px;color:var(--green);">
         <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
         Create, edit, archive facilities
+      </div>
+      {% elif user.role == 'technical_staff' %}
+      <div style="display:flex;align-items:center;gap:8px;color:var(--green);">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Update facility status
       </div>
       {% else %}
       <div style="display:flex;align-items:center;gap:8px;color:var(--muted);">
@@ -80,7 +85,7 @@
     <div class="card-title" style="margin-bottom:14px;">Quick Actions</div>
     <div style="display:flex;flex-direction:column;gap:10px;">
       <a href="{% url 'facilities' %}" class="btn btn-outline" style="justify-content:center;">View All Facilities</a>
-      {% if user.can_manage_facilities %}
+      {% if user.can_edit_facility_details %}
       <a href="{% url 'facility_create' %}" class="btn btn-primary" style="justify-content:center;">+ Add New Facility</a>
       {% endif %}
       {% if user.can_book %}

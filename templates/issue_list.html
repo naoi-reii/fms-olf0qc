@@ -8,7 +8,9 @@
       {% if user.is_it_staff %}All reported facility issues{% else %}Your submitted reports{% endif %}
     </div>
   </div>
+  {% if user.can_report_issues %}
   <a href="{% url 'issue_report_create' %}" class="btn btn-primary">+ Report Issue</a>
+  {% endif %}
 </div>
 
 <!-- Filters -->
@@ -106,7 +108,9 @@
   <div class="card" style="text-align:center;padding:40px;color:var(--muted);">
     No issue reports found.
     <br><br>
+    {% if user.can_report_issues %}
     <a href="{% url 'issue_report_create' %}" class="btn btn-outline">+ Report an Issue</a>
+    {% endif %}
   </div>
   {% endfor %}
 </div>

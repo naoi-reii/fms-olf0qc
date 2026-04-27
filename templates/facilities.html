@@ -6,7 +6,7 @@
     <div style="font-family:'DM Serif Display',serif;font-size:24px;">Facilities</div>
     <div style="font-size:13px;color:var(--muted);margin-top:4px;">CAS Building — {{ total }} facilities</div>
   </div>
-  {% if user.can_manage_facilities %}
+  {% if user.can_edit_facility_details %}
   <a href="{% url 'facility_create' %}" class="btn btn-primary">+ Add Facility</a>
   {% endif %}
 </div>
@@ -97,7 +97,9 @@
           <div style="display:flex;gap:8px;">
             <a href="{% url 'facility_detail' facility.pk %}" class="btn btn-outline btn-sm" style="flex:1;justify-content:center;">View</a>
             {% if user.can_manage_facilities %}
-            <a href="{% url 'facility_edit' facility.pk %}" class="btn btn-sm" style="background:var(--bg);border:1.5px solid var(--border);color:var(--muted);justify-content:center;">Edit</a>
+            <a href="{% url 'facility_edit' facility.pk %}" class="btn btn-sm" style="background:var(--bg);border:1.5px solid var(--border);color:var(--muted);justify-content:center;">
+              {% if user.can_edit_facility_details %}Edit{% else %}Status{% endif %}
+            </a>
             {% endif %}
             {% if user.can_book and facility.status == 'active' %}
             <a href="{% url 'booking_create' %}?facility={{ facility.pk }}" class="btn btn-primary btn-sm" style="justify-content:center;">Book</a>
@@ -113,7 +115,7 @@
 {% else %}
 <div class="card" style="text-align:center;padding:48px;color:var(--muted);">
   No facilities found.
-  {% if user.can_manage_facilities %}<br><br><a href="{% url 'facility_create' %}" class="btn btn-primary">+ Add First Facility</a>{% endif %}
+  {% if user.can_edit_facility_details %}<br><br><a href="{% url 'facility_create' %}" class="btn btn-primary">+ Add First Facility</a>{% endif %}
 </div>
 {% endif %}
 

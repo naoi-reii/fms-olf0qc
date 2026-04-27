@@ -183,6 +183,10 @@ def facility_detail_view(request, pk):
 @login_required(login_url='login')
 @facility_management_required
 def facility_create_view(request):
+    if not request.user.can_edit_facility_details():
+        messages.error(request, 'Technical staff cannot create facilities.')
+        return redirect('facilities')
+        
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()
         location = request.POST.get('location', '').strip()
@@ -203,6 +207,17 @@ def facility_create_view(request):
 def facility_edit_view(request, pk):
     facility = get_object_or_404(Facility, pk=pk)
     if request.method == 'POST':
+        if not request.user.can_edit_facility_details():
+            # Technical Staff - Only allow status update
+            new_status = request.POST.get('status')
+            if new_status in dict(Facility.STATUS_CHOICES):
+                facility.status = new_status
+                facility.save()
+                log_activity(request.user, 'edit_facility', f'Updated status for: {facility.name} to {new_status}', request)
+                messages.success(request, f'Facility status for "{facility.name}" updated.')
+            return redirect('facility_detail', pk=facility.pk)
+            
+        # Full edit for Superusers and Managers
         for field in ['name', 'location', 'building', 'floor', 'facility_type', 'capacity', 'description', 'tags', 'custodian', 'status']:
             val = request.POST.get(field, getattr(facility, field))
             setattr(facility, field, str(val).strip() if isinstance(val, str) else val)
@@ -862,6 +877,10 @@ def issue_list_view(request):
 
 @login_required(login_url='login')
 def issue_report_create_view(request):
+    if not request.user.can_report_issues():
+        messages.error(request, 'Technical staff cannot report issues.')
+        return redirect('issue_list')
+        
     facilities = Facility.objects.all().order_by('floor', 'name')
     available = Facility.objects.filter(status='active')
     my_bookings = Booking.objects.filter(booked_by=request.user, status__in=['approved', 'pending']).order_by('-date')[:10]

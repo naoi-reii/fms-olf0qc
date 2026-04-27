@@ -90,7 +90,9 @@
         <a href="{% url 'booking_create' %}?facility={{ facility.pk }}" class="btn btn-primary" style="justify-content:center;">Book This Facility</a>
         {% endif %}
         {% if user.can_manage_facilities %}
-        <a href="{% url 'facility_edit' facility.pk %}" class="btn btn-outline" style="justify-content:center;">Edit Facility</a>
+        <a href="{% url 'facility_edit' facility.pk %}" class="btn btn-outline" style="justify-content:center;">
+          {% if user.can_edit_facility_details %}Edit Facility{% else %}Update Status{% endif %}
+        </a>
         {% endif %}
         <a href="{% url 'facilities' %}" class="btn" style="background:var(--bg);border:1.5px solid var(--border);color:var(--muted);justify-content:center;">Back to List</a>
       </div>

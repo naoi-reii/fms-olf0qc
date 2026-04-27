@@ -37,6 +37,9 @@ class User(AbstractUser):
     def can_manage_facilities(self):
         return self.role in [self.SUPERUSER_ROLE, self.FACILITY_MANAGER, self.TECHNICAL_STAFF] or self.is_superuser
 
+    def can_edit_facility_details(self):
+        return self.role in [self.SUPERUSER_ROLE, self.FACILITY_MANAGER] or self.is_superuser
+
     def can_approve_bookings(self):
         return self.role in [self.SUPERUSER_ROLE, self.FACILITY_MANAGER] or self.is_superuser
 
@@ -51,6 +54,9 @@ class User(AbstractUser):
 
     def can_send_announcements(self):
         return self.role in [self.SUPERUSER_ROLE, self.FACILITY_MANAGER] or self.is_superuser
+
+    def can_report_issues(self):
+        return self.role != self.TECHNICAL_STAFF or self.is_superuser
 
     def is_it_staff(self):
         return self.role in [self.SUPERUSER_ROLE, self.FACILITY_MANAGER, self.TECHNICAL_STAFF] or self.is_superuser
