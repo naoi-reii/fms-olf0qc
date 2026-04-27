@@ -1050,6 +1050,88 @@ def profile_view(request):
     return render(request, 'profile.html', {'recent_bookings': request.user.bookings.select_related('facility').order_by('-created_at')[:5], 'recent_activity': request.user.activity_logs.all()[:5]})
 
 
+@login_required(login_url='login')
+def settings_view(request):
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'update_profile':
+            request.user.department = request.POST.get('department', request.user.department)
+            request.user.save()
+            messages.success(request, 'Profile updated.')
+            
+        elif action == 'change_name':
+            request.user.first_name = request.POST.get('first_name', '').strip()
+            request.user.last_name = request.POST.get('last_name', '').strip()
+            request.user.save()
+            messages.success(request, 'Name updated successfully.')
+            
+        elif action == 'change_username':
+            new_username = request.POST.get('username', '').strip()
+            if new_username and new_username != request.user.username:
+                if User.objects.filter(username=new_username).exists():
+                    messages.error(request, 'Username already taken.')
+                else:
+                    request.user.username = new_username
+                    request.user.save()
+                    messages.success(request, 'Username changed successfully.')
+            
+        elif action == 'update_image':
+            if 'profile_picture' in request.FILES:
+                request.user.profile_picture = request.FILES['profile_picture']
+                request.user.save()
+                messages.success(request, 'Profile picture updated.')
+                
+        elif action == 'remove_image':
+            request.user.profile_picture = None
+            request.user.save()
+            messages.success(request, 'Profile picture removed.')
+            
+        elif action == 'change_email':
+            new_email = request.POST.get('email', '').strip()
+            if new_email:
+                request.user.email = new_email
+                request.user.save()
+                messages.success(request, 'Email updated successfully.')
+                
+        elif action == 'change_password':
+            new_pw = request.POST.get('new_password')
+            confirm_pw = request.POST.get('confirm_password')
+            
+            if new_pw != confirm_pw:
+                messages.error(request, 'Passwords do not match.')
+            elif len(new_pw) < 8:
+                messages.error(request, 'New password must be at least 8 characters.')
+            else:
+                request.user.set_password(new_pw)
+                request.user.save()
+                update_session_auth_hash(request, request.user)
+                messages.success(request, 'Password changed successfully.')
+                
+        elif action == 'toggle_mfa':
+            request.user.mfa_enabled = not request.user.mfa_enabled
+            request.user.save()
+            messages.success(request, f'2-Step Verification {"enabled" if request.user.mfa_enabled else "disabled"}.')
+            
+        elif action == 'delete_account':
+            confirmation = request.POST.get('confirmation', '').strip()
+            if confirmation == "Yes, i want to delete my account":
+                user_pk = request.user.pk
+                username = request.user.username
+                logout(request)
+                User.objects.filter(pk=user_pk).delete()
+                messages.success(request, f'Account "{username}" has been permanently deleted.')
+                return redirect('login')
+            else:
+                messages.error(request, 'Incorrect confirmation sentence.')
+                
+        return redirect('settings')
+        
+    return render(request, 'settings.html', {
+        'dept_choices': User.DEPARTMENT_CHOICES,
+    })
+
+
 # ── Module 4: Notifications ───────────────────────────────────
 
 @login_required(login_url='login')

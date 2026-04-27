@@ -27,6 +27,7 @@ class User(AbstractUser):
     role = models.CharField(max_length=30, choices=ROLE_CHOICES, default=STANDARD_USER)
     department = models.CharField(max_length=30, choices=DEPARTMENT_CHOICES, blank=True, default='')
     phone = models.CharField(max_length=20, blank=True)
+    profile_picture = models.ImageField(upload_to='profiles/', blank=True, null=True)
     profile_notes = models.TextField(blank=True)
     last_active = models.DateTimeField(null=True, blank=True)
     mfa_enabled = models.BooleanField(default=False)

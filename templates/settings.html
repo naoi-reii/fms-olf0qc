@@ -1,0 +1,379 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  .settings-layout { display: flex; gap: 32px; align-items: flex-start; }
+  .settings-sidebar { width: 200px; flex-shrink: 0; }
+  .settings-content { flex: 1; max-width: 800px; }
+  
+  .settings-nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer; transition: all 0.2s; margin-bottom: 4px; }
+  .settings-nav-item:hover { background: var(--bg); color: var(--text); }
+  .settings-nav-item.active { background: var(--green-light); color: var(--green); }
+  .settings-nav-item svg { width: 16px; height: 16px; }
+
+  .settings-section { margin-bottom: 40px; }
+  .settings-section-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  
+  .profile-header { display: flex; align-items: center; gap: 24px; margin-bottom: 24px; }
+  .profile-img-large { width: 80px; height: 80px; border-radius: 50%; background: var(--green-light); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .profile-img-large img { width: 100%; height: 100%; object-fit: cover; }
+  .profile-img-large svg { width: 40px; height: 40px; color: var(--green); }
+  
+  .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid var(--border); }
+  .setting-row:last-child { border-bottom: none; }
+  .setting-info { flex: 1; }
+  .setting-label { font-size: 14px; font-weight: 600; color: var(--text); }
+  .setting-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .setting-value { font-size: 13px; color: var(--text); margin-top: 4px; }
+  
+  /* Modal Styles */
+  .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 1000; }
+  .modal-box { background: var(--white); border-radius: 14px; width: 100%; max-width: 450px; padding: 24px; position: relative; }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .modal-title { font-size: 16px; font-weight: 600; color: var(--text); }
+  .modal-close { cursor: pointer; color: var(--muted); }
+  .modal-close:hover { color: var(--text); }
+  
+  /* Drag and Drop Area */
+  .drop-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--green); background: var(--green-light); }
+  .drop-zone svg { width: 32px; height: 32px; color: var(--muted); margin-bottom: 12px; }
+  .drop-zone p { font-size: 13px; color: var(--muted); }
+  
+  /* Toggle Switch */
+  .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+  .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+  input:checked + .slider { background-color: var(--green); }
+  input:checked + .slider:before { transform: translateX(18px); }
+</style>
+
+<div style="font-family:'DM Serif Display',serif;font-size:26px;margin-bottom:28px;">Account Settings</div>
+
+<div class="settings-layout">
+  <!-- Sidebar -->
+  <div class="settings-sidebar">
+    <div class="nav-label" style="margin-bottom: 12px;">General Settings</div>
+    <div class="settings-nav-item active">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+      Account
+    </div>
+    <div class="settings-nav-item disabled" title="Coming soon">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+      Notification
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="settings-content">
+    
+    <!-- Profile Section -->
+    <div class="settings-section">
+      <div class="settings-section-title">My Profile</div>
+      
+      <div class="profile-header">
+        <div class="profile-img-large">
+          {% if user.profile_picture %}
+            <img src="{{ user.profile_picture.url }}" alt="Profile">
+          {% else %}
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+          {% endif %}
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-primary" onclick="openModal('imageModal')">+ Change Image</button>
+          {% if user.profile_picture %}
+            <form method="POST">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="remove_image">
+              <button type="submit" class="btn btn-outline" style="border-color: var(--muted); color: var(--muted);">Remove Image</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+      <p style="font-size: 11px; color: var(--muted); margin-top: -12px; margin-bottom: 24px;">We support PNGs, JPEGs under 2MB</p>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Full Name</div>
+          <div class="setting-value">{{ user.get_full_name|default:user.username }}</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="openModal('nameModal')">Change name</button>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Username</div>
+          <div class="setting-value">{{ user.username }}</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="openModal('usernameModal')">Change username</button>
+      </div>
+
+      <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_profile">
+        
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Department</div>
+            <div class="setting-desc">Select your primary department</div>
+            <select name="department" class="form-control" style="max-width: 300px; margin-top: 8px;">
+              {% for val, label in dept_choices %}
+                <option value="{{ val }}" {% if user.department == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Update Changes</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Security Section -->
+    <div class="settings-section">
+      <div class="settings-section-title">Account Security</div>
+      
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Email</div>
+          <div class="setting-value">{{ user.email|default:"No email set" }}</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="openModal('emailModal')">Change email</button>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Password</div>
+          <div class="setting-value">************</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="openModal('passwordModal')">Change password</button>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">2-Step Verifications</div>
+          <div class="setting-desc">Add an additional layer of security to your account during login.</div>
+        </div>
+        <form method="POST" id="mfaForm">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="toggle_mfa">
+          <label class="switch">
+            <input type="checkbox" {% if user.mfa_enabled %}checked{% endif %} onchange="document.getElementById('mfaForm').submit()">
+            <span class="slider"></span>
+          </label>
+        </form>
+      </div>
+
+      <div class="setting-row" style="margin-top: 20px;">
+        <div class="setting-info">
+          <div class="setting-label" style="color: var(--red);">Delete my account</div>
+          <div class="setting-desc">Permanently delete the account and remove access from all workspaces.</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="openModal('deleteModal')">Delete Account</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modals -->
+
+<!-- Change Name Modal -->
+<div id="nameModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">Change Full Name</div>
+      <div class="modal-close" onclick="closeModal('nameModal')">&times;</div>
+    </div>
+    <form method="POST">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="change_name">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label">First Name</label>
+          <input type="text" name="first_name" class="form-control" value="{{ user.first_name }}">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label">Last Name</label>
+          <input type="text" name="last_name" class="form-control" value="{{ user.last_name }}">
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button type="button" class="btn btn-outline" onclick="closeModal('nameModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Change Image Modal -->
+<div id="imageModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">Change Profile Image</div>
+      <div class="modal-close" onclick="closeModal('imageModal')">&times;</div>
+    </div>
+    <form method="POST" enctype="multipart/form-data">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="update_image">
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('profilePicInput').click()">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <p>Drag & drop or click to upload</p>
+        <input type="file" name="profile_picture" id="profilePicInput" style="display: none;" onchange="this.form.submit()">
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Change Username Modal -->
+<div id="usernameModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">Change Username</div>
+      <div class="modal-close" onclick="closeModal('usernameModal')">&times;</div>
+    </div>
+    <form method="POST">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="change_username">
+      <div class="form-group">
+        <label class="form-label">New Username</label>
+        <input type="text" name="username" class="form-control" value="{{ user.username }}" required>
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button type="button" class="btn btn-outline" onclick="closeModal('usernameModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Change Email Modal -->
+<div id="emailModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">Change Email Address</div>
+      <div class="modal-close" onclick="closeModal('emailModal')">&times;</div>
+    </div>
+    <form method="POST">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="change_email">
+      <div class="form-group">
+        <label class="form-label">New Email Address</label>
+        <input type="email" name="email" class="form-control" value="{{ user.email }}" required>
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button type="button" class="btn btn-outline" onclick="closeModal('emailModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Update Email</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div id="passwordModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">Change Password</div>
+      <div class="modal-close" onclick="closeModal('passwordModal')">&times;</div>
+    </div>
+    <form method="POST">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="change_password">
+      <div class="form-group">
+        <label class="form-label">New Password</label>
+        <input type="password" name="new_password" class="form-control" required minlength="8">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm New Password</label>
+        <input type="password" name="confirm_password" class="form-control" required minlength="8">
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button type="button" class="btn btn-outline" onclick="closeModal('passwordModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Change Password</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Delete Account Modal -->
+<div id="deleteModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" style="color: var(--red);">Delete Account</div>
+      <div class="modal-close" onclick="closeModal('deleteModal')">&times;</div>
+    </div>
+    <p style="font-size: 13px; color: var(--muted); margin-bottom: 20px;">
+      This action is <b>permanent</b> and cannot be undone. All your data will be deleted.
+    </p>
+    <form method="POST">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="delete_account">
+      <div class="form-group">
+        <label class="form-label">Type "Yes, i want to delete my account" to confirm</label>
+        <input type="text" id="deleteConfirmInput" name="confirmation" class="form-control" required autocomplete="off">
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button type="button" class="btn btn-outline" onclick="closeModal('deleteModal')">Cancel</button>
+        <button type="submit" id="deleteSubmitBtn" class="btn btn-danger" disabled>Delete Account</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openModal(id) {
+    document.getElementById(id).style.display = 'flex';
+  }
+  function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+  }
+  
+  // Close modal when clicking outside
+  window.onclick = function(event) {
+    if (event.target.className === 'modal-overlay') {
+      event.target.style.display = 'none';
+    }
+  }
+
+  // Delete confirmation logic
+  const deleteInput = document.getElementById('deleteConfirmInput');
+  const deleteBtn = document.getElementById('deleteSubmitBtn');
+  const targetPhrase = "Yes, i want to delete my account";
+
+  deleteInput.addEventListener('input', function() {
+    if (this.value === targetPhrase) {
+      deleteBtn.disabled = false;
+    } else {
+      deleteBtn.disabled = true;
+    }
+  });
+
+  // Drag and drop logic
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('profilePicInput');
+
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, preventDefaults, false);
+  });
+
+  function preventDefaults (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    fileInput.files = files;
+    fileInput.form.submit();
+  }, false);
+
+</script>
+
+{% endblock %}
