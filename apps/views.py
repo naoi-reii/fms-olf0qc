@@ -306,6 +306,7 @@ def bookings_view(request):
     view_mode = request.GET.get('view', 'list')
     status_filter = request.GET.get('status', '')
     facility_filter = request.GET.get('facility', '')
+    limit_filter = request.GET.get('limit', '50')
     
     if request.user.can_manage_facilities():
         bookings_qs = Booking.objects.filter(group__isnull=True).select_related('facility', 'booked_by')
@@ -329,6 +330,13 @@ def bookings_view(request):
     combined_bookings = bookings_list + groups_list
     combined_bookings.sort(key=lambda x: x.created_at, reverse=True)
 
+    if limit_filter and limit_filter != 'all':
+        try:
+            limit = int(limit_filter)
+            combined_bookings = combined_bookings[:limit]
+        except ValueError:
+            pass
+
     today = datetime.date.today()
     cal = [{'id': b.pk, 'title': f'{b.facility.name} — {b.booked_by.get_full_name() or b.booked_by.username}', 'start': f'{b.date}T{b.start_time}', 'end': f'{b.date}T{b.end_time}', 'color': '#1a6b3a' if b.status == 'approved' else '#b7770d', 'status': b.status, 'facility': b.facility.name, 'booked_by': b.booked_by.get_full_name() or b.booked_by.username, 'purpose': b.purpose, 'is_own': b.booked_by_id == request.user.id} for b in Booking.objects.select_related('facility', 'booked_by').filter(status__in=['pending', 'approved'])]
     
@@ -345,6 +353,7 @@ def bookings_view(request):
         'view_mode': view_mode, 
         'status_filter': status_filter, 
         'facility_filter': facility_filter, 
+        'limit_filter': limit_filter,
         'facilities': Facility.objects.filter(status='active'), 
         'stats': stats, 
         'today': today,

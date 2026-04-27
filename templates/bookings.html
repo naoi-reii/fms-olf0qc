@@ -179,7 +179,7 @@ document.getElementById('event-modal').addEventListener('click', function(e) {
 {% else %}
 <!-- LIST VIEW -->
 <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-  <form method="GET" style="display:flex;gap:8px;flex-wrap:wrap;">
+  <form method="GET" style="display:flex;gap:8px;flex-wrap:wrap;width:100%;">
     <input type="hidden" name="view" value="list"/>
     <select name="status" class="form-control" style="width:auto;padding:7px 14px;font-size:13px;" onchange="this.form.submit()">
       <option value="">All Status</option>
@@ -241,8 +241,18 @@ document.getElementById('event-modal').addEventListener('click', function(e) {
     </script>
     {% endif %}
 
-    {% if status_filter or facility_filter %}    <a href="?view=list" class="btn btn-outline btn-sm" style="padding:7px 14px;">Clear</a>
+    {% if status_filter or facility_filter %}
+    <a href="?view=list" class="btn btn-outline btn-sm" style="padding:7px 14px;">Clear</a>
     {% endif %}
+
+    <div style="margin-left:auto; display:flex; align-items:center;">
+      <select name="limit" class="form-control" style="width:auto;padding:7px 14px;font-size:13px;" onchange="this.form.submit()">
+        <option value="25" {% if limit_filter == '25' %}selected{% endif %}>Show 25</option>
+        <option value="50" {% if limit_filter == '50' or not limit_filter %}selected{% endif %}>Show 50</option>
+        <option value="200" {% if limit_filter == '200' %}selected{% endif %}>Show 200</option>
+        <option value="all" {% if limit_filter == 'all' %}selected{% endif %}>Show All</option>
+      </select>
+    </div>
   </form>
 </div>
 
