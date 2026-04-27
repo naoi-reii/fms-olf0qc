@@ -87,32 +87,51 @@
         {% csrf_token %}
         <div class="form-group">
           <label class="form-label">Update Status</label>
-          <select name="status" class="form-control">
+          <select name="status" class="form-control" id="issue_status_select">
             {% for v, l in status_choices %}
             <option value="{{ v }}" {% if issue.status == v %}selected{% endif %}>{{ l }}</option>
             {% endfor %}
           </select>
         </div>
-        {% if issue.requesting_room_change and issue.status == 'room_change_requested' %}
-        <div class="form-group">
-          <label class="form-label">Assign New Room</label>
-          <select name="new_facility" class="form-control" id="new_facility_select">
-            <option value="">Select available room...</option>
-            {% for f in available_facilities %}
-            <option value="{{ f.pk }}" {% if issue.preferred_alternative and issue.preferred_alternative.pk == f.pk %}selected{% endif %}>{{ f.name }} — {{ f.floor }} (Cap: {{ f.capacity }})</option>
-            {% endfor %}
-          </select>
+
+        <div id="assign_room_container" style="{% if issue.status != 'room_change_requested' %}display:none;{% endif %}">
+          <div class="form-group">
+            <label class="form-label">Assign New Room</label>
+            <select name="new_facility" class="form-control" id="new_facility_select">
+              <option value="">Select available room...</option>
+              {% for f in available_facilities %}
+              <option value="{{ f.pk }}" {% if issue.preferred_alternative and issue.preferred_alternative.pk == f.pk %}selected{% endif %}>{{ f.name }} — {{ f.floor }} (Cap: {{ f.capacity }})</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
-        {% endif %}
+
         <div class="form-group">
           <label class="form-label">Resolution / Notes</label>
           <textarea name="resolution_notes" class="form-control" placeholder="Describe what was done or what will be done...">{{ issue.resolution_notes }}</textarea>
         </div>
         <div style="display:flex;gap:8px;">
-          <button type="submit" class="btn btn-primary">Update</button>
+          <button type="submit" class="btn btn-primary">Update status</button>
+          <button type="button" class="btn btn-primary" id="update_room_btn" style="{% if issue.status != 'room_change_requested' %}display:none;{% endif %}" onclick="document.querySelector('#issue_status_select').value='room_change_approved'; this.closest('form').submit();">Update room</button>
         </div>
       </form>
     </div>
+
+    <script>
+      document.getElementById('issue_status_select').addEventListener('change', function() {
+        const val = this.value;
+        const roomContainer = document.getElementById('assign_room_container');
+        const updateRoomBtn = document.getElementById('update_room_btn');
+        
+        if (val === 'room_change_requested') {
+          roomContainer.style.display = 'block';
+          updateRoomBtn.style.display = 'inline-flex';
+        } else {
+          roomContainer.style.display = 'none';
+          updateRoomBtn.style.display = 'none';
+        }
+      });
+    </script>
     {% endif %}
 
     <!-- Message Thread -->

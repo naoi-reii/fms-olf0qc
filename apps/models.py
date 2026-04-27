@@ -187,6 +187,7 @@ class IssueReport(models.Model):
     description = models.TextField()
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='open')
+    is_read = models.BooleanField(default=False)
 
     # Room change request
     requesting_room_change = models.BooleanField(default=False)
@@ -262,6 +263,7 @@ class Notification(models.Model):
     message = models.TextField()
     is_read = models.BooleanField(default=False)
     booking = models.ForeignKey(Booking, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')
+    issue_report = models.ForeignKey('IssueReport', on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')
     sent_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_notifications')
     created_at = models.DateTimeField(auto_now_add=True)
 

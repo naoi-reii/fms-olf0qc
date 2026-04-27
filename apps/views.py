@@ -819,7 +819,8 @@ def booking_request_change_view(request, pk):
             title=notif_title,
             message=notif_msg,
             sent_by=request.user,
-            booking=booking
+            booking=booking,
+            issue_report=issue
         )
 
     messages.success(request, 'Room change request submitted successfully.')
@@ -830,14 +831,32 @@ def booking_request_change_view(request, pk):
 
 @login_required(login_url='login')
 def issue_list_view(request):
+    from django.db.models import Count, Q
     status_filter = request.GET.get('status', '')
     priority_filter = request.GET.get('priority', '')
     if request.user.is_it_staff():
         issues = IssueReport.objects.select_related('facility', 'reported_by').all()
     else:
         issues = IssueReport.objects.filter(reported_by=request.user).select_related('facility')
+
+    # Annotate with unread message count and unread notification flag for the current user
+    issues = issues.annotate(
+        unread_count=Count(
+            'messages',
+            filter=Q(messages__recipient=request.user, messages__is_read=False)
+        ),
+        has_unread_notif=Count(
+            'notifications',
+            filter=Q(notifications__recipient=request.user, notifications__is_read=False)
+        )
+    )
+
     if status_filter: issues = issues.filter(status=status_filter)
     if priority_filter: issues = issues.filter(priority=priority_filter)
+    
+    # Ensure explicit ordering by latest first
+    issues = issues.order_by('-created_at')
+    
     return render(request, 'issue_list.html', {'issues': issues, 'status_filter': status_filter, 'priority_filter': priority_filter, 'status_choices': IssueReport.STATUS_CHOICES, 'priority_choices': IssueReport.PRIORITY_CHOICES})
 
 
@@ -911,7 +930,7 @@ def issue_report_create_view(request):
         if issue.requesting_room_change:
             notif_msg += '\n⚠ Room change requested.'
         for staff in it_staff:
-            Notification.objects.create(recipient=staff, notif_type='announcement', title=notif_title, message=notif_msg, sent_by=request.user)
+            Notification.objects.create(recipient=staff, notif_type='announcement', title=notif_title, message=notif_msg, sent_by=request.user, issue_report=issue)
 
         messages.success(request, f'Issue reported successfully. IT Department has been notified.')
         return redirect('issue_list')
@@ -932,6 +951,14 @@ def issue_detail_view(request, pk):
     # Mark messages as read for the current user
     Message.objects.filter(issue_report=issue, recipient=request.user, is_read=False).update(is_read=True)
     
+    # Mark notifications as read for the current user
+    Notification.objects.filter(issue_report=issue, recipient=request.user, is_read=False).update(is_read=True)
+    
+    # Mark issue as read if staff is viewing it
+    if request.user.is_it_staff() and not issue.is_read:
+        issue.is_read = True
+        issue.save()
+    
     msgs = Message.objects.filter(issue_report=issue).select_related('sender').order_by('created_at')
     available_facilities = Facility.objects.filter(status='active').exclude(pk=issue.facility.pk)
     return render(request, 'issue_detail.html', {'issue': issue, 'message_thread': msgs, 'available_facilities': available_facilities, 'status_choices': IssueReport.STATUS_CHOICES})
@@ -946,8 +973,10 @@ def issue_update_view(request, pk):
         issue.status = request.POST.get('status', issue.status)
         issue.resolution_notes = request.POST.get('resolution_notes', issue.resolution_notes).strip()
         issue.assigned_to = request.user
+        issue.is_read = True
 
-        if issue.requesting_room_change and issue.status == 'room_change_approved' and original_status != 'room_change_approved':
+        if issue.status == 'room_change_approved' and original_status != 'room_change_approved':
+            issue.requesting_room_change = True  # Ensure consistency
             new_fac_id = request.POST.get('new_facility')
             if new_fac_id:
                 new_fac = get_object_or_404(Facility, pk=new_fac_id)
@@ -957,9 +986,9 @@ def issue_update_view(request, pk):
                 if issue.booking:
                     issue.booking.facility = new_fac
                     issue.booking.save()
-                    Notification.objects.create(recipient=issue.reported_by, notif_type='approval', title=f'Room Change Approved: {new_fac.name}', message=f'Your room change request has been approved. Your booking has been moved to {new_fac.name}.', booking=issue.booking, sent_by=request.user)
+                    Notification.objects.create(recipient=issue.reported_by, notif_type='approval', title=f'Room Change Approved: {new_fac.name}', message=f'Your room change request has been approved. Your booking has been moved to {new_fac.name}.', booking=issue.booking, sent_by=request.user, issue_report=issue)
                 else:
-                    Notification.objects.create(recipient=issue.reported_by, notif_type='approval', title=f'Room Change Approved: {new_fac.name}', message=f'Your room change request has been approved. New room: {new_fac.name}.', sent_by=request.user)
+                    Notification.objects.create(recipient=issue.reported_by, notif_type='approval', title=f'Room Change Approved: {new_fac.name}', message=f'Your room change request has been approved. New room: {new_fac.name}.', sent_by=request.user, issue_report=issue)
                 # Set original room to maintenance
                 issue.facility.status = 'maintenance'
                 issue.facility.save()
@@ -971,7 +1000,7 @@ def issue_update_view(request, pk):
 
         if issue.status == 'resolved' and original_status != 'resolved':
             issue.resolved_at = timezone.now()
-            Notification.objects.create(recipient=issue.reported_by, notif_type='confirmation', title=f'Issue Resolved: {issue.title}', message=f'Your reported issue "{issue.title}" in {issue.facility.name} has been resolved. {issue.resolution_notes}', sent_by=request.user)
+            Notification.objects.create(recipient=issue.reported_by, notif_type='confirmation', title=f'Issue Resolved: {issue.title}', message=f'Your reported issue "{issue.title}" in {issue.facility.name} has been resolved. {issue.resolution_notes}', sent_by=request.user, issue_report=issue)
 
         issue.save()
         messages.success(request, 'Issue updated.')
@@ -996,7 +1025,7 @@ def send_message_view(request, issue_pk):
             if recipient:
                 msg = Message.objects.create(sender=request.user, recipient=recipient, body=body, issue_report=issue)
                 # In-app notification
-                Notification.objects.create(recipient=recipient, notif_type='announcement', title=f'New message re: {issue.title}', message=f'{request.user.get_full_name() or request.user.username}: {body[:100]}', sent_by=request.user)
+                Notification.objects.create(recipient=recipient, notif_type='announcement', title=f'New message re: {issue.title}', message=f'{request.user.get_full_name() or request.user.username}: {body[:100]}', sent_by=request.user, issue_report=issue)
                 messages.success(request, 'Message sent.')
             else:
                 messages.error(request, 'Could not find recipient.')
