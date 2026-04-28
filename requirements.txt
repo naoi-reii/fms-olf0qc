@@ -1,0 +1,7 @@
+Django>=5.0,<6.1
+Pillow
+psycopg2-binary
+dj-database-url
+python-dotenv
+django-storages
+boto3
