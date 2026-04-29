@@ -20,6 +20,7 @@ urlpatterns = [
 
     # Module 2: Booking
     path('bookings/', views.bookings_view, name='bookings'),
+    path('api/available-rooms/<int:booking_id>/', views.api_get_available_rooms, name='api_get_available_rooms'),
     path('bookings/create/', views.booking_create_view, name='booking_create'),
     path('bookings/<int:pk>/', views.booking_detail_view, name='booking_detail'),
     path('bookings/<int:pk>/action/', views.booking_approve_view, name='booking_action'),

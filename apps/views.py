@@ -137,6 +137,37 @@ def logout_view(request):
 
 # ── Dashboard ─────────────────────────────────────────────────
 
+from django.http import JsonResponse, HttpResponse
+from django.db.models import Q
+
+@login_required(login_url='login')
+def api_get_available_rooms(request, booking_id):
+    try:
+        booking = Booking.objects.get(pk=booking_id)
+        
+        # Filter available rooms for this booking's time slot
+        conflicting_facility_ids = Booking.objects.filter(
+            date=booking.date,
+            status__in=[Booking.PENDING, Booking.APPROVED]
+        ).filter(
+            start_time__lt=booking.end_time,
+            end_time__gt=booking.start_time
+        ).exclude(pk=booking.pk).values_list('facility_id', flat=True)
+        
+        available = Facility.objects.filter(status='active').exclude(pk__in=conflicting_facility_ids)
+        
+        data = [
+            {
+                'pk': f.pk,
+                'name': f.name,
+                'floor': f.floor,
+                'capacity': f.capacity
+            } for f in available
+        ]
+        return JsonResponse({'available_facilities': data})
+    except Booking.DoesNotExist:
+        return JsonResponse({'error': 'Booking not found'}, status=404)
+
 @login_required(login_url='login')
 def dashboard_view(request):
     request.user.last_active = timezone.now()

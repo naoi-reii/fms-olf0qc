@@ -88,10 +88,10 @@
             </div>
             <input type="hidden" name="booking" value="{{ booking.pk }}"/>
           {% else %}
-            <select name="booking" class="form-control">
+            <select name="booking" class="form-control" onchange="updateFacilityFromBooking(this)">
               <option value="">None</option>
               {% for b in my_bookings %}
-              <option value="{{ b.pk }}" {% if preselect_booking == b.pk|stringformat:'s' %}selected{% endif %}>
+              <option value="{{ b.pk }}" data-facility-id="{{ b.facility.pk }}" {% if preselect_booking == b.pk|stringformat:'s' %}selected{% endif %}>
                 #{{ b.pk }} — {{ b.facility.name }} {{ b.date }}
               </option>
               {% endfor %}
@@ -128,4 +128,58 @@
     </form>
   </div>
 </div>
+
+<script>
+function updateFacilityFromBooking(selectElement) {
+  const selectedOption = selectElement.options[selectElement.selectedIndex];
+  const facilityId = selectedOption.getAttribute('data-facility-id');
+  const facilitySelect = document.querySelector('select[name="facility"]');
+  const bookingId = selectElement.value;
+  const preferredAltSelect = document.querySelector('select[name="preferred_alternative"]');
+  
+  if (facilityId && facilitySelect) {
+    facilitySelect.value = facilityId;
+  }
+
+  // Reactive Room Change Request filtering
+  if (bookingId && preferredAltSelect) {
+    // Show loading state
+    preferredAltSelect.innerHTML = '<option value="">Loading available rooms...</option>';
+    
+    fetch(`/api/available-rooms/${bookingId}/`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.available_facilities) {
+          let html = '<option value="">Let admin decide</option>';
+          data.available_facilities.forEach(f => {
+            html += `<option value="${f.pk}">${f.name} — ${f.floor} (Cap: ${f.capacity})</option>`;
+          });
+          preferredAltSelect.innerHTML = html;
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching available rooms:', err);
+        preferredAltSelect.innerHTML = '<option value="">Error loading rooms</option>';
+      });
+  } else if (preferredAltSelect) {
+    // Restore initial available rooms if no booking selected
+    preferredAltSelect.innerHTML = initialAvailableRoomsHTML;
+  }
+}
+
+let initialAvailableRoomsHTML = '';
+
+// Handle pre-selected booking on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const preferredAltSelect = document.querySelector('select[name="preferred_alternative"]');
+  if (preferredAltSelect) {
+    initialAvailableRoomsHTML = preferredAltSelect.innerHTML;
+  }
+
+  const bookingSelect = document.querySelector('select[name="booking"]');
+  if (bookingSelect && bookingSelect.value) {
+    updateFacilityFromBooking(bookingSelect);
+  }
+});
+</script>
 {% endblock %}
