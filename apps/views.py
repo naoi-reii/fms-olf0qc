@@ -306,8 +306,12 @@ def bookings_view(request):
     view_mode = request.GET.get('view', 'list')
     status_filter = request.GET.get('status', '')
     facility_filter = request.GET.get('facility', '')
-    limit_filter = request.GET.get('limit', '50')
+    limit_filter = request.GET.get('limit', '25')
     
+    # Check if HTMX polling request
+    is_htmx = request.headers.get('HX-Request') == 'true'
+    last_created_at_str = request.GET.get('last_created_at')
+
     if request.user.can_manage_facilities():
         bookings_qs = Booking.objects.filter(group__isnull=True).select_related('facility', 'booked_by')
         groups_qs = BookingGroup.objects.select_related('facility', 'booked_by')
@@ -322,6 +326,17 @@ def bookings_view(request):
         bookings_qs = bookings_qs.filter(facility_id=facility_filter)
         groups_qs = groups_qs.filter(facility_id=facility_filter)
         
+    # For polling, only get newer ones
+    if is_htmx and last_created_at_str:
+        try:
+            # Handle potential 'Z' suffix or other ISO formats
+            dt_str = last_created_at_str.replace('Z', '+00:00')
+            last_created_at = datetime.datetime.fromisoformat(dt_str)
+            bookings_qs = bookings_qs.filter(created_at__gt=last_created_at)
+            groups_qs = groups_qs.filter(created_at__gt=last_created_at)
+        except ValueError:
+            pass
+
     bookings_list = list(bookings_qs)
     groups_list = list(groups_qs)
     for g in groups_list:
@@ -329,6 +344,12 @@ def bookings_view(request):
     
     combined_bookings = bookings_list + groups_list
     combined_bookings.sort(key=lambda x: x.created_at, reverse=True)
+
+    # If polling, we just return the new rows
+    if is_htmx and last_created_at_str:
+        return render(request, 'partials/booking_rows.html', {
+            'bookings': combined_bookings
+        })
 
     if limit_filter and limit_filter != 'all':
         try:

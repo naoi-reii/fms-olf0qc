@@ -246,90 +246,53 @@ document.getElementById('event-modal').addEventListener('click', function(e) {
     {% endif %}
 
     <div style="margin-left:auto; display:flex; align-items:center;">
-      <select name="limit" class="form-control" style="width:auto;padding:7px 14px;font-size:13px;" onchange="this.form.submit()">
-        <option value="25" {% if limit_filter == '25' %}selected{% endif %}>Show 25</option>
-        <option value="50" {% if limit_filter == '50' or not limit_filter %}selected{% endif %}>Show 50</option>
+      <select name="limit" id="limit-dropdown" class="form-control" style="width:auto;padding:7px 14px;font-size:13px;" onchange="this.form.submit()">
+        <option value="25" {% if limit_filter == '25' or not limit_filter %}selected{% endif %}>Show 25</option>
+        <option value="50" {% if limit_filter == '50' %}selected{% endif %}>Show 50</option>
+        <option value="100" {% if limit_filter == '100' %}selected{% endif %}>Show 100</option>
         <option value="200" {% if limit_filter == '200' %}selected{% endif %}>Show 200</option>
-        <option value="all" {% if limit_filter == 'all' %}selected{% endif %}>Show All</option>
       </select>
     </div>
   </form>
 </div>
 
-<div class="card">
+<div class="card" id="bookings-container" 
+     hx-get="{% url 'bookings' %}" 
+     hx-trigger="every 10s" 
+     hx-swap="afterbegin" 
+     hx-vals="js:{last_created_at: document.querySelector('.booking-row')?.dataset.createdAt || '', view: 'list', status: '{{ status_filter }}', facility: '{{ facility_filter }}', limit: document.getElementById('limit-dropdown').value}">
   {% if bookings %}
-  {% for booking in bookings %}
-  <div class="booking-row">
-    <div class="booking-id">{% if booking.is_group %}G#{{ booking.pk }}{% else %}#{{ booking.pk }}{% endif %}</div>
-    <div style="width:6px;height:36px;border-radius:3px;flex-shrink:0;
-      {% if booking.status == 'approved' %}background:var(--green);
-      {% elif booking.status == 'pending' %}background:var(--amber);
-      {% elif booking.status == 'rejected' %}background:var(--red);
-      {% else %}background:var(--border);{% endif %}">
-    </div>
-    <div class="booking-info">
-      <div class="facility-name">{{ booking.facility.name }} {% if booking.is_group %}<span style="font-size:11px;background:var(--amber-light);color:var(--amber);padding:2px 6px;border-radius:12px;margin-left:6px;">Recurring</span>{% endif %}</div>
-      <div class="meta">
-        {% if booking.is_group %}Every {{ booking.get_day_of_week_display }} ({{ booking.start_date }} to {{ booking.end_date }}){% else %}{{ booking.date }}{% endif %} &nbsp;·&nbsp; {{ booking.start_time|time:"g:i A" }} – {{ booking.end_time|time:"g:i A" }}
-        {% if user.can_manage_facilities %} &nbsp;·&nbsp; {{ booking.booked_by.get_full_name|default:booking.booked_by.username }}{% endif %}
-        {% if booking.purpose %} &nbsp;·&nbsp; {{ booking.purpose|truncatechars:40 }}{% endif %}
-        {% if booking.equipment_needed %} &nbsp;·&nbsp; <button onclick="showEquipment('{{ booking.equipment_needed|escapejs }}')" style="background:none;border:none;padding:0;color:var(--green);font-size:12px;font-weight:600;cursor:pointer;">Needs Equipment</button>{% endif %}
-      </div>
-    </div>
-    <div style="text-align:center;min-width:60px;">
-      <div style="font-size:13px;font-weight:600;">{{ booking.number_of_attendees }}</div>
-      <div style="font-size:11px;color:var(--muted);">pax</div>
-    </div>
-    <span class="status {{ booking.status }}">{{ booking.get_status_display }}</span>
-    {% if booking.is_group %}
-    <a href="{% url 'booking_group_edit' booking.pk %}" style="color:var(--green);font-weight:500;font-size:12px;margin-left:4px;margin-right:4px;">Manage Series →</a>
-    {% else %}
-    <a href="{% url 'booking_detail' booking.pk %}" style="color:var(--green);font-weight:500;font-size:12px;margin-left:4px;margin-right:4px;">View Booking →</a>
-    {% endif %}
-    <div class="booking-actions">
-      {% if booking.is_group %}
-        {% if user.can_approve_bookings and booking.status == 'pending' %}
-        <form method="POST" action="{% url 'booking_group_action' booking.pk %}" style="display:inline;">
-          {% csrf_token %}<input type="hidden" name="action" value="approve"/>
-          <button type="submit" class="btn btn-outline btn-sm">Approve</button>
-        </form>
-        <form method="POST" action="{% url 'booking_group_action' booking.pk %}" style="display:inline;">
-          {% csrf_token %}<input type="hidden" name="action" value="reject"/>
-          <button type="submit" class="btn btn-danger btn-sm">Reject</button>
-        </form>
-        {% elif booking.booked_by == user and booking.status == 'pending' %}
-        <form method="POST" action="{% url 'booking_group_cancel' booking.pk %}">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Cancel this entire series?')">Cancel</button>
-        </form>
-        {% endif %}
-      {% else %}
-        {% if user.can_approve_bookings and booking.status == 'pending' %}
-        <form method="POST" action="{% url 'booking_action' booking.pk %}" style="display:inline;">
-          {% csrf_token %}<input type="hidden" name="action" value="approve"/>
-          <button type="submit" class="btn btn-outline btn-sm">Approve</button>
-        </form>
-        <form method="POST" action="{% url 'booking_action' booking.pk %}" style="display:inline;">
-          {% csrf_token %}<input type="hidden" name="action" value="reject"/>
-          <button type="submit" class="btn btn-danger btn-sm">Reject</button>
-        </form>
-        {% elif booking.booked_by == user and booking.status == 'pending' %}
-        <form method="POST" action="{% url 'booking_cancel' booking.pk %}">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Cancel this booking?')">Cancel</button>
-        </form>
-        {% endif %}
-      {% endif %}
-    </div>
-  </div>
-  {% endfor %}
+    {% include 'partials/booking_rows.html' %}
   {% else %}
-  <div style="text-align:center;padding:40px;color:var(--muted);">
+  <div class="empty-state" style="text-align:center;padding:40px;color:var(--muted);">
     No bookings found.
     {% if user.can_book %}<br><br><a href="{% url 'booking_create' %}" class="btn btn-primary">+ Create Booking</a>{% endif %}
   </div>
   {% endif %}
 </div>
+
+<script>
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target.id === 'bookings-container') {
+        const container = evt.detail.target;
+        const rows = container.querySelectorAll('.booking-row');
+        const limitDropdown = document.getElementById('limit-dropdown');
+        const limit = parseInt(limitDropdown ? limitDropdown.value : 50);
+        
+        if (rows.length > limit) {
+            for (let i = limit; i < rows.length; i++) {
+                rows[i].remove();
+            }
+        }
+        
+        // If we just added rows, remove the empty state message if it exists
+        const emptyMsg = container.querySelector('.empty-state');
+        if (emptyMsg && rows.length > 0) {
+            emptyMsg.remove();
+        }
+    }
+});
+</script>
 
 <!-- Equipment Detail Modal -->
 <div id="equipment-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">

@@ -1,0 +1,65 @@
+{% for booking in bookings %}
+<div class="booking-row" data-pk="{{ booking.pk }}" data-is-group="{{ booking.is_group|yesno:'true,false' }}" data-created-at="{{ booking.created_at|date:'c' }}">
+  <div class="booking-id">{% if booking.is_group %}G#{{ booking.pk }}{% else %}#{{ booking.pk }}{% endif %}</div>
+  <div style="width:6px;height:36px;border-radius:3px;flex-shrink:0;
+    {% if booking.status == 'approved' %}background:var(--green);
+    {% elif booking.status == 'pending' %}background:var(--amber);
+    {% elif booking.status == 'rejected' %}background:var(--red);
+    {% else %}background:var(--border);{% endif %}">
+  </div>
+  <div class="booking-info">
+    <div class="facility-name">{{ booking.facility.name }} {% if booking.is_group %}<span style="font-size:11px;background:var(--amber-light);color:var(--amber);padding:2px 6px;border-radius:12px;margin-left:6px;">Recurring</span>{% endif %}</div>
+    <div class="meta">
+      {% if booking.is_group %}Every {{ booking.get_day_of_week_display }} ({{ booking.start_date }} to {{ booking.end_date }}){% else %}{{ booking.date }}{% endif %} &nbsp;·&nbsp; {{ booking.start_time|time:"g:i A" }} – {{ booking.end_time|time:"g:i A" }}
+      {% if user.can_manage_facilities %} &nbsp;·&nbsp; {{ booking.booked_by.get_full_name|default:booking.booked_by.username }}{% endif %}
+      {% if booking.purpose %} &nbsp;·&nbsp; {{ booking.purpose|truncatechars:40 }}{% endif %}
+      {% if booking.equipment_needed %} &nbsp;·&nbsp; <button onclick="showEquipment('{{ booking.equipment_needed|escapejs }}')" style="background:none;border:none;padding:0;color:var(--green);font-size:12px;font-weight:600;cursor:pointer;">Needs Equipment</button>{% endif %}
+    </div>
+  </div>
+  <div style="text-align:center;min-width:60px;">
+    <div style="font-size:13px;font-weight:600;">{{ booking.number_of_attendees }}</div>
+    <div style="font-size:11px;color:var(--muted);">pax</div>
+  </div>
+  <span class="status {{ booking.status }}">{{ booking.get_status_display }}</span>
+  {% if booking.is_group %}
+  <a href="{% url 'booking_group_edit' booking.pk %}" style="color:var(--green);font-weight:500;font-size:12px;margin-left:4px;margin-right:4px;">Manage Series →</a>
+  {% else %}
+  <a href="{% url 'booking_detail' booking.pk %}" style="color:var(--green);font-weight:500;font-size:12px;margin-left:4px;margin-right:4px;">View Booking →</a>
+  {% endif %}
+  <div class="booking-actions">
+    {% if booking.is_group %}
+      {% if user.can_approve_bookings and booking.status == 'pending' %}
+      <form method="POST" action="{% url 'booking_group_action' booking.pk %}" style="display:inline;">
+        {% csrf_token %}<input type="hidden" name="action" value="approve"/>
+        <button type="submit" class="btn btn-outline btn-sm">Approve</button>
+      </form>
+      <form method="POST" action="{% url 'booking_group_action' booking.pk %}" style="display:inline;">
+        {% csrf_token %}<input type="hidden" name="action" value="reject"/>
+        <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+      </form>
+      {% elif booking.booked_by == user and booking.status == 'pending' %}
+      <form method="POST" action="{% url 'booking_group_cancel' booking.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Cancel this entire series?')">Cancel</button>
+      </form>
+      {% endif %}
+    {% else %}
+      {% if user.can_approve_bookings and booking.status == 'pending' %}
+      <form method="POST" action="{% url 'booking_action' booking.pk %}" style="display:inline;">
+        {% csrf_token %}<input type="hidden" name="action" value="approve"/>
+        <button type="submit" class="btn btn-outline btn-sm">Approve</button>
+      </form>
+      <form method="POST" action="{% url 'booking_action' booking.pk %}" style="display:inline;">
+        {% csrf_token %}<input type="hidden" name="action" value="reject"/>
+        <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+      </form>
+      {% elif booking.booked_by == user and booking.status == 'pending' %}
+      <form method="POST" action="{% url 'booking_cancel' booking.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Cancel this booking?')">Cancel</button>
+      </form>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
