@@ -47,6 +47,7 @@ urlpatterns = [
 
     # Module 4: Notifications
     path('notifications/', views.notifications_view, name='notifications'),
+    path('notifications/badges/', views.notification_badges_view, name='notification_badges'),
     path('notifications/<int:pk>/delete/', views.notification_delete, name='notification_delete'),
     path('announcements/', views.announcement_list_view, name='announcement_list'),
     path('announcements/create/', views.announcement_create_view, name='announcement_create'),

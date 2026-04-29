@@ -1,0 +1,16 @@
+<span id="topbar-notif-badge" hx-swap-oob="true">
+    {% if unread_notifications %}<span class="notif-badge">{{ unread_notifications }}</span>{% endif %}
+</span>
+<span id="sidebar-bookings-badge" hx-swap-oob="true">
+    {% if pending_bookings %}<span class="nav-badge">{{ pending_bookings }}</span>{% endif %}
+</span>
+<span id="sidebar-issues-badge" hx-swap-oob="true">
+    {% with total_issue_alerts=unread_issue_messages|add:open_issues %}
+      {% if total_issue_alerts %}
+        <span class="nav-badge">{{ total_issue_alerts }}</span>
+      {% endif %}
+    {% endwith %}
+</span>
+<span id="sidebar-notifications-badge" hx-swap-oob="true">
+    {% if unread_notifications %}<span class="nav-badge">{{ unread_notifications }}</span>{% endif %}
+</span>

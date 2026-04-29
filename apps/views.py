@@ -1270,7 +1270,18 @@ def notifications_view(request):
     notifs = request.user.notifications.all()
     if filter_type: notifs = notifs.filter(notif_type=filter_type)
     request.user.notifications.filter(is_read=False).update(is_read=True)
-    return render(request, 'notifications.html', {'notifications': notifs, 'filter_type': filter_type, 'type_choices': Notification.TYPE_CHOICES, 'announcements': Announcement.objects.all()[:5]})
+    
+    context = {'notifications': notifs, 'filter_type': filter_type, 'type_choices': Notification.TYPE_CHOICES, 'announcements': Announcement.objects.all()[:5]}
+    
+    if request.headers.get('HX-Request') == 'true':
+        return render(request, 'partials/notification_list.html', context)
+        
+    return render(request, 'notifications.html', context)
+
+
+@login_required(login_url='login')
+def notification_badges_view(request):
+    return render(request, 'partials/notification_badges.html')
 
 
 @login_required(login_url='login')
