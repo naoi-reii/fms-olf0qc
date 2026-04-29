@@ -452,7 +452,15 @@ def booking_check_conflict(request):
             end_date = datetime.date.fromisoformat(data.get('end_date'))
             day_of_week = int(data.get('day_of_week'))
             
-            if start_date < now.date(): return JsonResponse({'conflict': False, 'error': 'Cannot book a past date.'})
+            group_id = data.get('exclude_group_pk')
+            original_start_date = None
+            if group_id:
+                try:
+                    original_start_date = BookingGroup.objects.get(pk=group_id).start_date
+                except BookingGroup.DoesNotExist: pass
+
+            if start_date < now.date() and start_date != original_start_date: 
+                return JsonResponse({'conflict': False, 'error': 'Cannot book a past date.'})
             if end_date < start_date: return JsonResponse({'conflict': False, 'error': 'End date must be after start date.'})
             
             current_date = start_date
@@ -796,7 +804,7 @@ def booking_group_edit_view(request, pk):
                 if filtered_conflicts and not force:
                     form_data = request.POST.copy()
                     form_data['equipment_items'] = equipment_items
-                    return render(request, 'booking_form.html', {'facilities': facilities, 'has_conflict': True, 'conflict_info': filtered_conflicts, 'form_data': form_data, 'preselect': facility_id, 'equipment_choices': EQUIPMENT_CHOICES, 'today': datetime.date.today().isoformat(), 'is_recurring': True, 'is_edit': True})
+                    return render(request, 'booking_form.html', {'facilities': facilities, 'has_conflict': True, 'conflict_info': filtered_conflicts, 'form_data': form_data, 'preselect': facility_id, 'equipment_choices': EQUIPMENT_CHOICES, 'today': datetime.date.today().isoformat(), 'is_recurring': True, 'is_edit': True, 'original_start_date': str(group.start_date)})
                 
                 group.facility = facility
                 group.start_date = start_date
@@ -845,7 +853,7 @@ def booking_group_edit_view(request, pk):
             form_data['equipment_needed'] = group.equipment_needed if not eq_items else ''
         form_data['equipment_items'] = eq_items
         
-    return render(request, 'booking_form.html', {'facilities': facilities, 'today': datetime.date.today().isoformat(), 'equipment_choices': EQUIPMENT_CHOICES, 'is_recurring': True, 'form_data': form_data, 'is_edit': True})
+    return render(request, 'booking_form.html', {'facilities': facilities, 'today': datetime.date.today().isoformat(), 'equipment_choices': EQUIPMENT_CHOICES, 'is_recurring': True, 'form_data': form_data, 'is_edit': True, 'original_start_date': str(group.start_date)})
 
 
 @login_required(login_url='login')
