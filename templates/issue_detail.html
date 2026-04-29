@@ -80,7 +80,7 @@
     </div>
 
     <!-- Manage (IT staff) -->
-    {% if user.is_it_staff and issue.status != 'resolved' %}
+    {% if user.can_manage_reports and issue.status != 'resolved' %}
     <div class="card" style="margin-bottom:14px;">
       <div class="card-title" style="margin-bottom:14px;">Manage Issue</div>
       <form method="POST" action="{% url 'issue_update' issue.pk %}">
@@ -176,7 +176,7 @@
       <div style="font-size:14px;font-weight:600;">{{ issue.facility.name }}</div>
       <div style="font-size:12px;color:var(--muted);margin-top:4px;">{{ issue.facility.floor }}</div>
       <div style="margin-top:10px;"><span class="status {{ issue.facility.status }}">{{ issue.facility.get_status_display }}</span></div>
-      {% if user.is_it_staff %}
+      {% if user.can_manage_reports %}
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
         <form method="POST" action="{% url 'facility_set_maintenance' issue.facility.pk %}">
           {% csrf_token %}

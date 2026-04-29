@@ -52,6 +52,9 @@ class User(AbstractUser):
     def can_view_reports(self):
         return self.role in [self.SUPERUSER_ROLE, self.FACILITY_MANAGER] or self.is_superuser
 
+    def can_manage_reports(self):
+        return self.role in [self.SUPERUSER_ROLE, self.TECHNICAL_STAFF] or self.is_superuser
+
     def can_send_announcements(self):
         return self.role in [self.SUPERUSER_ROLE, self.FACILITY_MANAGER] or self.is_superuser
 

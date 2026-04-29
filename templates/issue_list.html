@@ -92,13 +92,12 @@
         {% endif %}
       </div>
 
-      <!-- Actions -->
       <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
         <a href="{% url 'issue_detail' issue.pk %}" class="btn btn-outline btn-sm">View</a>
-        {% if user.is_it_staff and issue.status == 'open' %}
+        {% if user.can_manage_reports and issue.status == 'open' %}
         <a href="{% url 'issue_update' issue.pk %}" class="btn btn-primary btn-sm">Manage</a>
         {% endif %}
-        {% if user.is_it_staff and issue.requesting_room_change and issue.status == 'room_change_requested' %}
+        {% if user.can_manage_reports and issue.requesting_room_change and issue.status == 'room_change_requested' %}
         <a href="{% url 'issue_detail' issue.pk %}" class="btn btn-sm" style="background:#ede8fb;border:1.5px solid #9c8de8;color:#4a35b0;">Review Change</a>
         {% endif %}
       </div>

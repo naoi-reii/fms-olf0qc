@@ -48,6 +48,17 @@ def facility_management_required(view_func):
     return wrapper
 
 
+def report_management_required(view_func):
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated: return redirect('login')
+        if not request.user.can_manage_reports():
+            messages.error(request, 'You do not have permission to manage issue reports.')
+            return redirect('issue_list')
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
 def booking_required(view_func):
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
@@ -1058,7 +1069,7 @@ def issue_detail_view(request, pk):
 
 
 @login_required(login_url='login')
-@facility_management_required
+@report_management_required
 def issue_update_view(request, pk):
     issue = get_object_or_404(IssueReport, pk=pk)
     if request.method == 'POST':
