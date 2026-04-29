@@ -100,8 +100,7 @@ if 'AWS_STORAGE_BUCKET_NAME' in os.environ:
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = 'public-read'
     AWS_QUERYSTRING_AUTH = False  # Allows images to be viewed publicly without signing URL
-    # Replace 'qiyhguijtqmyvmhlzosd' with your actual project ref if it differs
-    AWS_S3_CUSTOM_DOMAIN = "qiyhguijtqmyvmhlzosd.supabase.co/storage/v1/object/public/media"
+    AWS_S3_CUSTOM_DOMAIN = os.environ.get('AWS_S3_CUSTOM_DOMAIN')
     
     STORAGES = {
         "default": {
