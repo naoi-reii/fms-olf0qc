@@ -913,7 +913,12 @@ def issue_report_create_view(request):
         
     facilities = Facility.objects.all().order_by('floor', 'name')
     available = Facility.objects.filter(status='active')
-    my_bookings = Booking.objects.filter(booked_by=request.user, status__in=['approved', 'pending']).order_by('-date')[:10]
+    today = datetime.date.today()
+    my_bookings = Booking.objects.filter(
+        booked_by=request.user, 
+        status__in=['approved', 'pending'],
+        date__gte=today
+    ).order_by('date', 'start_time')[:15]
     preselect_facility = request.GET.get('facility', '')
     preselect_booking = request.GET.get('booking', '')
     request_room_change = request.GET.get('request_room_change') == 'true'
