@@ -523,50 +523,64 @@ def booking_check_conflict(request):
             
         if all_conflicts:
             suggestions = []
-            
-            # Smart Suggestion: Try exactly 20 minutes after the latest conflicting booking ends
             try:
-                latest_end = max([datetime.datetime.combine(dates_to_check[0], c.end_time) for c in all_conflicts])
-                alt_start_dt = latest_end + datetime.timedelta(minutes=20)
+                # Calculate duration
+                req_start_dt = datetime.datetime.combine(dates_to_check[0], start_time)
+                req_end_dt = datetime.datetime.combine(dates_to_check[0], end_time)
+                duration = req_end_dt - req_start_dt
                 
-                # Keep same duration
-                req_start = datetime.datetime.combine(dates_to_check[0], start_time)
-                req_end = datetime.datetime.combine(dates_to_check[0], end_time)
-                duration = req_end - req_start
-                alt_end_dt = alt_start_dt + duration
+                # Operating hours: 7:00 AM to 8:00 PM
+                OP_START = datetime.datetime.combine(dates_to_check[0], datetime.time(7, 0))
+                OP_END = datetime.datetime.combine(dates_to_check[0], datetime.time(20, 0))
                 
-                if alt_end_dt.time().hour < 21:
-                    alt_start = alt_start_dt.time()
+                candidate_starts = set()
+                
+                # 1. 15-minute intervals
+                curr = OP_START
+                while curr + duration <= OP_END:
+                    candidate_starts.add(curr.time())
+                    curr += datetime.timedelta(minutes=15)
+                
+                # 2. Exact 20-minute boundaries from conflicts
+                for c in all_conflicts:
+                    # After conflict
+                    cand_after_dt = datetime.datetime.combine(dates_to_check[0], c.end_time) + datetime.timedelta(minutes=20)
+                    if OP_START <= cand_after_dt and cand_after_dt + duration <= OP_END:
+                        candidate_starts.add(cand_after_dt.time())
+                    # Before conflict
+                    cand_before_dt = datetime.datetime.combine(dates_to_check[0], c.start_time) - datetime.timedelta(minutes=20) - duration
+                    if OP_START <= cand_before_dt and cand_before_dt + duration <= OP_END:
+                        candidate_starts.add(cand_before_dt.time())
+                
+                # Validate and score candidates
+                valid_candidates = []
+                for alt_start in candidate_starts:
+                    alt_end_dt = datetime.datetime.combine(dates_to_check[0], alt_start) + duration
                     alt_end = alt_end_dt.time()
                     
-                    alt_conflict_found = False
-                    for date in dates_to_check:
-                        if check_booking_conflict(facility, date, alt_start, alt_end, data.get('exclude_pk')):
-                            alt_conflict_found = True
+                    conflict_found = False
+                    for d in dates_to_check:
+                        if check_booking_conflict(facility, d, alt_start, alt_end, data.get('exclude_pk'), data.get('exclude_group_pk')):
+                            conflict_found = True
                             break
-                    
-                    if not alt_conflict_found:
-                        suggestions.append({'start': str(alt_start)[:5], 'end': str(alt_end)[:5]})
+                    if not conflict_found:
+                        # Diff in seconds
+                        diff = abs((datetime.datetime.combine(dates_to_check[0], alt_start) - req_start_dt).total_seconds())
+                        valid_candidates.append((diff, alt_start, alt_end))
+                
+                valid_candidates.sort() # Sort by smallest diff
+                
+                for _, s_time, e_time in valid_candidates[:2]:
+                    suggestions.append({
+                        'start': s_time.strftime('%H:%M'),
+                        'end': e_time.strftime('%H:%M'),
+                        'start_12hr': s_time.strftime('%I:%M %p').lstrip('0'),
+                        'end_12hr': e_time.strftime('%I:%M %p').lstrip('0')
+                    })
             except Exception:
                 pass
-
-            # Standard suggestions (offsets)
-            for offset in [1, 2]:
-                if len(suggestions) >= 2: break
-                alt_start = (datetime.datetime.combine(dates_to_check[0], end_time) + datetime.timedelta(hours=offset)).time()
-                duration = datetime.datetime.combine(dates_to_check[0], end_time) - datetime.datetime.combine(dates_to_check[0], start_time)
-                alt_end = (datetime.datetime.combine(dates_to_check[0], alt_start) + duration).time()
-                
-                alt_conflict_found = False
-                for date in dates_to_check:
-                    if check_booking_conflict(facility, date, alt_start, alt_end, data.get('exclude_pk')):
-                        alt_conflict_found = True
-                        break
-                        
-                if not alt_conflict_found and alt_end.hour < 21:
-                    suggestions.append({'start': str(alt_start)[:5], 'end': str(alt_end)[:5]})
                     
-            return JsonResponse({'conflict': True, 'conflicts': [{'booked_by': c.booked_by.get_full_name() or c.booked_by.username, 'date': str(c.date), 'start_time': str(c.start_time), 'end_time': str(c.end_time), 'status': c.get_status_display()} for c in all_conflicts], 'suggestions': suggestions})
+            return JsonResponse({'conflict': True, 'conflicts': [{'booked_by': c.booked_by.get_full_name() or c.booked_by.username, 'date': str(c.date), 'start_time': c.start_time.strftime('%I:%M %p').lstrip('0'), 'end_time': c.end_time.strftime('%I:%M %p').lstrip('0'), 'status': c.get_status_display()} for c in all_conflicts], 'suggestions': suggestions})
         return JsonResponse({'conflict': False})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)

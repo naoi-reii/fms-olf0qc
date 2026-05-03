@@ -261,8 +261,8 @@ async function check() {
     if (d.error) { document.getElementById('cr').innerHTML=`<div style="color:var(--red);font-size:13px;margin-top:8px;">${d.error}</div>`; return; }
     if (d.conflict) {
       let h = `<div class="conflict-box" style="margin-top:10px;"><div class="conflict-title">⚠ Time Conflict</div>`;
-      d.conflicts.forEach(c=>{h+=`<div style="padding:5px 0;font-size:13px;">Booked by <strong>${c.booked_by}</strong> on ${c.date} — ${c.start_time.slice(0,5)}–${c.end_time.slice(0,5)}</div>`;});
-      if(d.suggestions?.length){h+=`<div style="margin-top:8px;font-size:12px;font-weight:600;color:var(--green);">Try these slots:</div>`;d.suggestions.forEach(s=>{h+=`<span class="suggestion-pill" onclick="apply('${s.start}','${s.end}')">${s.start}–${s.end}</span>`;});}
+      d.conflicts.forEach(c=>{h+=`<div style="padding:5px 0;font-size:13px;">Booked by <strong>${c.booked_by}</strong> on ${c.date} — ${c.start_time}–${c.end_time}</div>`;});
+      if(d.suggestions?.length){h+=`<div style="margin-top:8px;font-size:12px;font-weight:600;color:var(--green);">Try these slots:</div>`;d.suggestions.forEach(s=>{h+=`<span class="suggestion-pill" onclick="apply('${s.start}','${s.end}')">${s.start_12hr}–${s.end_12hr}</span>`;});}
       h+=`</div>`;
       document.getElementById('cr').innerHTML = h;
     } else { document.getElementById('ok').classList.add('show'); }
