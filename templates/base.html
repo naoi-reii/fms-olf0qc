@@ -270,7 +270,7 @@ textarea.form-control{resize:vertical;min-height:90px;}
 </script>
 
 {% if user.is_authenticated %}
-  <div hx-get="{% url 'notification_badges' %}" hx-trigger="every 10s" hx-swap="none" style="display:none;"></div>
+  <div hx-get="{% url 'notification_badges' %}" hx-trigger="every 10s, refreshBadges from:body" hx-swap="none" style="display:none;"></div>
 {% endif %}
 </body>
 </html>

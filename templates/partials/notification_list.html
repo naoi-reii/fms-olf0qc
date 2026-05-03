@@ -1,3 +1,33 @@
+<div hx-get="?type={{ filter_type }}&page={{ page_obj.number|default:1 }}" hx-trigger="every 10s" hx-swap="innerHTML" hx-target="#notification-list">
+  {% if notifications.paginator.num_pages > 1 %}
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);background:var(--bg);border-radius:8px 8px 0 0;">
+    <div style="font-size:13px;color:var(--muted);">
+      Showing page {{ notifications.number }} of {{ notifications.paginator.num_pages }}
+    </div>
+    <div style="display:flex;gap:8px;">
+      {% if notifications.has_previous %}
+      <button hx-get="?type={{ filter_type }}&page={{ notifications.previous_page_number }}" hx-target="#notification-list" class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:12px;">
+        ← Previous
+      </button>
+      {% else %}
+      <button class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:12px;opacity:0.5;cursor:not-allowed;" disabled>
+        ← Previous
+      </button>
+      {% endif %}
+
+      {% if notifications.has_next %}
+      <button hx-get="?type={{ filter_type }}&page={{ notifications.next_page_number }}" hx-target="#notification-list" class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:12px;">
+        Next →
+      </button>
+      {% else %}
+      <button class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:12px;opacity:0.5;cursor:not-allowed;" disabled>
+        Next →
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   {% if notifications %}
   {% for notif in notifications %}
   <div class="notif-item {% if not notif.is_read %}unread{% endif %}">
@@ -56,3 +86,4 @@
     {% if filter_type %} of this type{% endif %}.
   </div>
   {% endif %}
+</div>

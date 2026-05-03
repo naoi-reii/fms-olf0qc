@@ -3,6 +3,7 @@ from django.contrib.auth import authenticate, login, logout, update_session_auth
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
+from django.core.paginator import Paginator
 from django.utils import timezone
 from functools import wraps
 import datetime
@@ -1390,14 +1391,45 @@ def notifications_view(request):
     filter_type = request.GET.get('type', '')
     notifs = request.user.notifications.all()
     if filter_type: notifs = notifs.filter(notif_type=filter_type)
-    request.user.notifications.filter(is_read=False).update(is_read=True)
     
-    context = {'notifications': notifs, 'filter_type': filter_type, 'type_choices': Notification.TYPE_CHOICES, 'announcements': Announcement.objects.all()[:5]}
+    paginator = Paginator(notifs, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Optimize: Only mark visible items as read, and skip during auto-refresh polls
+    is_poll = request.headers.get('HX-Trigger') == 'notification-list'
+    marked_as_read = False
+    if not is_poll:
+        unread_notifs = [n for n in page_obj if not n.is_read]
+        if unread_notifs:
+            Notification.objects.filter(pk__in=[n.pk for n in unread_notifs]).update(is_read=True)
+            marked_as_read = True
+            # Sync memory objects for the current render
+            for n in unread_notifs: n.is_read = True
+    
+    context = {
+        'notifications': page_obj, 
+        'page_obj': page_obj,
+        'filter_type': filter_type, 
+        'type_choices': Notification.TYPE_CHOICES, 
+        'announcements': Announcement.objects.all()[:5]
+    }
     
     if request.headers.get('HX-Request') == 'true':
-        return render(request, 'partials/notification_list.html', context)
+        response = render(request, 'partials/notification_list.html', context)
+        if marked_as_read:
+            response['HX-Trigger'] = 'refreshBadges'
+        return response
         
     return render(request, 'notifications.html', context)
+
+
+@login_required(login_url='login')
+def notifications_mark_all_read_view(request):
+    if request.method == 'POST':
+        request.user.notifications.filter(is_read=False).update(is_read=True)
+        messages.success(request, 'All notifications marked as read.')
+    return redirect('notifications')
 
 
 @login_required(login_url='login')
