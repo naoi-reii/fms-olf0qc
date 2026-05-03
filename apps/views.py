@@ -35,6 +35,27 @@ def send_notification(recipient, notif_type, title, message_text, booking=None, 
     return Notification.objects.create(recipient=recipient, notif_type=notif_type, title=title, message=message_text, booking=booking, sent_by=sent_by)
 
 
+def get_conflicting_facility_ids(date, start_time, end_time, exclude_booking_pk=None):
+    """Returns a list of facility IDs that have a booking conflict (including 20-min buffer) for the given slot."""
+    buffer = datetime.timedelta(minutes=20)
+    dummy_date = datetime.date(2000, 1, 1)
+    n_start = datetime.datetime.combine(dummy_date, start_time)
+    n_end = datetime.datetime.combine(dummy_date, end_time)
+    
+    bookings = Booking.objects.filter(
+        date=date, 
+        status__in=[Booking.PENDING, Booking.APPROVED]
+    ).exclude(pk=exclude_booking_pk or 0)
+    
+    conflicting_ids = set()
+    for b in bookings:
+        e_start = datetime.datetime.combine(dummy_date, b.start_time)
+        e_end = datetime.datetime.combine(dummy_date, b.end_time)
+        if n_start < e_end + buffer and n_end > e_start - buffer:
+            conflicting_ids.add(b.facility_id)
+    return list(conflicting_ids)
+
+
 # ── Decorators ────────────────────────────────────────────────
 
 def facility_management_required(view_func):
@@ -156,14 +177,8 @@ def api_get_available_rooms(request, booking_id):
     try:
         booking = Booking.objects.get(pk=booking_id)
         
-        # Filter available rooms for this booking's time slot
-        conflicting_facility_ids = Booking.objects.filter(
-            date=booking.date,
-            status__in=[Booking.PENDING, Booking.APPROVED]
-        ).filter(
-            start_time__lt=booking.end_time,
-            end_time__gt=booking.start_time
-        ).exclude(pk=booking.pk).values_list('facility_id', flat=True)
+        # Filter available rooms for this booking's time slot (including 20-min buffer)
+        conflicting_facility_ids = get_conflicting_facility_ids(booking.date, booking.start_time, booking.end_time, exclude_booking_pk=booking.pk)
         
         available = Facility.objects.filter(status='active').exclude(pk__in=conflicting_facility_ids)
         
@@ -340,7 +355,22 @@ def check_booking_conflict(facility, date, start_time, end_time, exclude_pk=None
     conflicts = Booking.objects.filter(facility=facility, date=date, status__in=[Booking.PENDING, Booking.APPROVED]).exclude(pk=exclude_pk or 0)
     if exclude_group_pk:
         conflicts = conflicts.exclude(group_id=exclude_group_pk)
-    return [b for b in conflicts if b.start_time < end_time and b.end_time > start_time]
+    
+    # Enforce 20-minute buffer between bookings
+    buffer = datetime.timedelta(minutes=20)
+    dummy_date = datetime.date(2000, 1, 1)
+    n_start = datetime.datetime.combine(dummy_date, start_time)
+    n_end = datetime.datetime.combine(dummy_date, end_time)
+    
+    results = []
+    for b in conflicts:
+        e_start = datetime.datetime.combine(dummy_date, b.start_time)
+        e_end = datetime.datetime.combine(dummy_date, b.end_time)
+        
+        # Conflict if [N_start, N_end] overlaps with [E_start - 20m, E_end + 20m]
+        if n_start < e_end + buffer and n_end > e_start - buffer:
+            results.append(b)
+    return results
 
 
 @login_required(login_url='login')
@@ -493,7 +523,36 @@ def booking_check_conflict(request):
             
         if all_conflicts:
             suggestions = []
-            for offset in [1, 2, 3]:
+            
+            # Smart Suggestion: Try exactly 20 minutes after the latest conflicting booking ends
+            try:
+                latest_end = max([datetime.datetime.combine(dates_to_check[0], c.end_time) for c in all_conflicts])
+                alt_start_dt = latest_end + datetime.timedelta(minutes=20)
+                
+                # Keep same duration
+                req_start = datetime.datetime.combine(dates_to_check[0], start_time)
+                req_end = datetime.datetime.combine(dates_to_check[0], end_time)
+                duration = req_end - req_start
+                alt_end_dt = alt_start_dt + duration
+                
+                if alt_end_dt.time().hour < 21:
+                    alt_start = alt_start_dt.time()
+                    alt_end = alt_end_dt.time()
+                    
+                    alt_conflict_found = False
+                    for date in dates_to_check:
+                        if check_booking_conflict(facility, date, alt_start, alt_end, data.get('exclude_pk')):
+                            alt_conflict_found = True
+                            break
+                    
+                    if not alt_conflict_found:
+                        suggestions.append({'start': str(alt_start)[:5], 'end': str(alt_end)[:5]})
+            except Exception:
+                pass
+
+            # Standard suggestions (offsets)
+            for offset in [1, 2]:
+                if len(suggestions) >= 2: break
                 alt_start = (datetime.datetime.combine(dates_to_check[0], end_time) + datetime.timedelta(hours=offset)).time()
                 duration = datetime.datetime.combine(dates_to_check[0], end_time) - datetime.datetime.combine(dates_to_check[0], start_time)
                 alt_end = (datetime.datetime.combine(dates_to_check[0], alt_start) + duration).time()
@@ -506,7 +565,6 @@ def booking_check_conflict(request):
                         
                 if not alt_conflict_found and alt_end.hour < 21:
                     suggestions.append({'start': str(alt_start)[:5], 'end': str(alt_end)[:5]})
-                    if len(suggestions) >= 2: break
                     
             return JsonResponse({'conflict': True, 'conflicts': [{'booked_by': c.booked_by.get_full_name() or c.booked_by.username, 'date': str(c.date), 'start_time': str(c.start_time), 'end_time': str(c.end_time), 'status': c.get_status_display()} for c in all_conflicts], 'suggestions': suggestions})
         return JsonResponse({'conflict': False})
@@ -980,14 +1038,8 @@ def issue_report_create_view(request):
             if not preselect_facility:
                 preselect_facility = str(booking.facility.pk)
             
-            # Filter available rooms for this booking's time slot
-            conflicting_facility_ids = Booking.objects.filter(
-                date=booking.date,
-                status__in=[Booking.PENDING, Booking.APPROVED]
-            ).filter(
-                start_time__lt=booking.end_time,
-                end_time__gt=booking.start_time
-            ).exclude(pk=booking.pk).values_list('facility_id', flat=True)
+            # Filter available rooms for this booking's time slot (including 20-min buffer)
+            conflicting_facility_ids = get_conflicting_facility_ids(booking.date, booking.start_time, booking.end_time, exclude_booking_pk=booking.pk)
             
             available = Facility.objects.filter(status='active').exclude(pk__in=conflicting_facility_ids)
         except Booking.DoesNotExist:
