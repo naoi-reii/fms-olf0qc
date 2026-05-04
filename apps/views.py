@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
+from django.contrib.auth.hashers import make_password, check_password
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
@@ -141,6 +142,11 @@ def login_view(request):
             pass
         user = authenticate(request, username=username, password=password)
         if user:
+            if user.mfa_enabled:
+                request.session['pre_2fa_user_id'] = user.id
+                request.session['pre_2fa_backend'] = user.backend
+                return redirect('verify_2fa')
+                
             user.failed_login_attempts = 0
             user.last_active = timezone.now()
             user.save(update_fields=['failed_login_attempts', 'last_active'])
@@ -159,6 +165,46 @@ def login_view(request):
         except User.DoesNotExist:
             messages.error(request, 'Invalid username or password.')
     return render(request, 'login.html')
+
+
+def verify_2fa_view(request):
+    user_id = request.session.get('pre_2fa_user_id')
+    if not user_id:
+        return redirect('login')
+    
+    user = get_object_or_404(User, id=user_id)
+    if user.is_locked:
+        messages.error(request, 'Account is locked. Contact administrator.')
+        return redirect('login')
+
+    if request.method == 'POST':
+        answer = request.POST.get('answer', '').strip().lower()
+        if check_password(answer, user.security_answer):
+            user.failed_login_attempts = 0
+            user.last_active = timezone.now()
+            user.save(update_fields=['failed_login_attempts', 'last_active'])
+            backend = request.session.get('pre_2fa_backend')
+            login(request, user, backend=backend)
+            log_activity(user, 'login', 'User logged in (2FA verified)', request)
+            if 'pre_2fa_user_id' in request.session:
+                del request.session['pre_2fa_user_id']
+            if 'pre_2fa_backend' in request.session:
+                del request.session['pre_2fa_backend']
+            return redirect('dashboard')
+        else:
+            user.failed_login_attempts += 1
+            if user.failed_login_attempts >= 5:
+                user.is_locked = True
+                messages.error(request, 'Account locked after 5 failed attempts.')
+                if 'pre_2fa_user_id' in request.session:
+                    del request.session['pre_2fa_user_id']
+                user.save(update_fields=['failed_login_attempts', 'is_locked'])
+                return redirect('login')
+            else:
+                messages.error(request, f'Incorrect answer. {5 - user.failed_login_attempts} attempt(s) remaining.')
+                user.save(update_fields=['failed_login_attempts'])
+    
+    return render(request, 'verify_2fa.html', {'security_question': user.security_question})
 
 
 def logout_view(request):
@@ -1360,10 +1406,28 @@ def settings_view(request):
                 update_session_auth_hash(request, request.user)
                 messages.success(request, 'Password changed successfully.')
                 
+        elif action == 'enable_mfa':
+            question = request.POST.get('security_question', '').strip()
+            answer = request.POST.get('security_answer', '').strip().lower()
+            if question and answer:
+                request.user.security_question = question
+                request.user.security_answer = make_password(answer)
+                request.user.mfa_enabled = True
+                request.user.save()
+                messages.success(request, '2-Step Verification enabled with security question.')
+            else:
+                messages.error(request, 'Question and answer are required.')
+                
         elif action == 'toggle_mfa':
-            request.user.mfa_enabled = not request.user.mfa_enabled
-            request.user.save()
-            messages.success(request, f'2-Step Verification {"enabled" if request.user.mfa_enabled else "disabled"}.')
+            if request.user.mfa_enabled:
+                request.user.mfa_enabled = False
+                request.user.security_question = None
+                request.user.security_answer = None
+                request.user.save()
+                messages.success(request, '2-Step Verification disabled.')
+            else:
+                # Should not be reached from the frontend normally
+                messages.error(request, 'To enable 2-Step Verification, please use the setup modal.')
             
         elif action == 'delete_account':
             confirmation = request.POST.get('confirmation', '').strip()

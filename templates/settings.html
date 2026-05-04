@@ -59,10 +59,6 @@
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
       Account
     </div>
-    <div class="settings-nav-item disabled" title="Coming soon">
-      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-      Notification
-    </div>
   </div>
 
   <!-- Content -->
@@ -157,7 +153,7 @@
           {% csrf_token %}
           <input type="hidden" name="action" value="toggle_mfa">
           <label class="switch">
-            <input type="checkbox" {% if user.mfa_enabled %}checked{% endif %} onchange="document.getElementById('mfaForm').submit()">
+            <input type="checkbox" id="mfaToggle" {% if user.mfa_enabled %}checked{% endif %} onchange="handleMfaToggle(this)">
             <span class="slider"></span>
           </label>
         </form>
@@ -349,12 +345,52 @@
   </div>
 </div>
 
+<!-- MFA Setup Modal -->
+<div id="mfaSetupModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">Setup 2-Step Verification</div>
+      <div class="modal-close" onclick="closeModal('mfaSetupModal')">&times;</div>
+    </div>
+    <p style="font-size: 13px; color: var(--muted); margin-bottom: 20px;">
+      Create a custom security question and answer to protect your account.
+    </p>
+    <form method="POST">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="enable_mfa">
+      <div class="form-group">
+        <label class="form-label">Security Question</label>
+        <input type="text" name="security_question" class="form-control" placeholder="e.g. What is your favorite book?" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Security Answer</label>
+        <input type="text" name="security_answer" class="form-control" placeholder="Answer (case-insensitive)" required autocomplete="off">
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button type="button" class="btn btn-outline" onclick="closeModal('mfaSetupModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Enable 2FA</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
   function openModal(id) {
     document.getElementById(id).style.display = 'flex';
   }
   function closeModal(id) {
     document.getElementById(id).style.display = 'none';
+  }
+
+  function handleMfaToggle(checkbox) {
+    if (checkbox.checked) {
+      // Turning ON - open modal
+      checkbox.checked = false;
+      openModal('mfaSetupModal');
+    } else {
+      // Turning OFF - submit form
+      document.getElementById('mfaForm').submit();
+    }
   }
   
   // Close modal when clicking outside

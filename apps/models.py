@@ -31,6 +31,8 @@ class User(AbstractUser):
     profile_notes = models.TextField(blank=True)
     last_active = models.DateTimeField(null=True, blank=True)
     mfa_enabled = models.BooleanField(default=False)
+    security_question = models.CharField(max_length=255, blank=True, null=True)
+    security_answer = models.CharField(max_length=255, blank=True, null=True)
     failed_login_attempts = models.PositiveIntegerField(default=0)
     is_locked = models.BooleanField(default=False)
 
