@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load socialaccount %}
 {% block content %}
 <style>
   .settings-layout { display: flex; gap: 32px; align-items: flex-start; }
@@ -102,7 +103,7 @@
 
       <div class="setting-row">
         <div class="setting-info">
-          <div class="setting-label">Username</div>
+          <div class="setting-label">Username / School ID</div>
           <div class="setting-value">{{ user.username }}</div>
         </div>
         <button class="btn btn-outline btn-sm" onclick="openModal('usernameModal')">Change username</button>
@@ -160,6 +161,36 @@
             <span class="slider"></span>
           </label>
         </form>
+      </div>
+
+      <div class="setting-row">
+        {% get_social_accounts user as accounts %}
+        <div class="setting-info">
+          <div class="setting-label">Connected Accounts</div>
+          <div class="setting-desc">Link your Google account for easier sign-in and password recovery.</div>
+          <div class="setting-value">
+            {% if accounts.google %}
+              <span style="color: var(--green); display: flex; align-items: center; gap: 4px;">
+                <svg style="width:14px;height:14px;" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                Google linked: {{ accounts.google.0.extra_data.email }}
+              </span>
+            {% else %}
+              <span style="color: var(--muted);">No accounts linked</span>
+            {% endif %}
+          </div>
+        </div>
+        {% if accounts.google %}
+          <form method="post" action="{% url 'socialaccount_connections' %}">
+            {% csrf_token %}
+            <input type="hidden" name="account" value="{{ accounts.google.0.id }}">
+            <button type="submit" class="btn btn-outline btn-sm" style="color: var(--red); border-color: var(--red);">Disconnect</button>
+          </form>
+        {% else %}
+          <form method="post" action="{% provider_login_url 'google' process='connect' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline btn-sm">Link Google Account</button>
+          </form>
+        {% endif %}
       </div>
 
       <div class="setting-row" style="margin-top: 20px;">

@@ -5,3 +5,4 @@ dj-database-url
 python-dotenv
 django-storages
 boto3
+django-allauth[socialaccount]
