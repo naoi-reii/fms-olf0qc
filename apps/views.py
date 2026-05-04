@@ -237,9 +237,6 @@ def logout_view(request):
 
 # ── Dashboard ─────────────────────────────────────────────────
 
-from django.http import JsonResponse, HttpResponse
-from django.db.models import Q
-
 @login_required(login_url='login')
 def api_get_available_rooms(request, booking_id):
     try:
@@ -278,11 +275,21 @@ def dashboard_view(request):
         for b in pending_bookings:
             if not Notification.objects.filter(booking=b, notif_type='escalation', recipient=request.user).exists():
                 Notification.objects.create(recipient=request.user, notif_type='escalation', title=f'Pending 24h: {b.facility.name}', message=f'Booking #{b.pk} by {b.booked_by.get_full_name() or b.booked_by.username} has been pending for over 24 hours.', booking=b)
+
+    # Filter recent bookings based on role/department
+    recent_bookings_qs = Booking.objects.select_related('facility', 'booked_by')
+    if request.user.can_manage_facilities():
+        if request.user.role == User.FACILITY_MANAGER:
+            dept_filter = Q(booked_by__role=User.STANDARD_USER, booked_by__department=request.user.department) | ~Q(booked_by__role=User.STANDARD_USER)
+            recent_bookings_qs = recent_bookings_qs.filter(dept_filter)
+    else:
+        recent_bookings_qs = recent_bookings_qs.filter(booked_by=request.user)
+
     context = {
         'total_facilities': Facility.objects.count(),
         'active_facilities': Facility.objects.filter(status='active').count(),
         'bookings_today': Booking.objects.filter(date=today).count(),
-        'recent_bookings': Booking.objects.select_related('facility', 'booked_by').all()[:5],
+        'recent_bookings': recent_bookings_qs[:5],
     }
     return render(request, 'dashboard.html', context)
 
