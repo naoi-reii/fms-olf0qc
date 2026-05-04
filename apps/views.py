@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Q, Count
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.hashers import make_password, check_password
 from django.contrib.auth.decorators import login_required
@@ -56,6 +57,26 @@ def get_conflicting_facility_ids(date, start_time, end_time, exclude_booking_pk=
         if n_start < e_end + buffer and n_end > e_start - buffer:
             conflicting_ids.add(b.facility_id)
     return list(conflicting_ids)
+
+
+def is_auto_approve_enabled_for_user(user):
+    """Checks if auto-approval is active and applicable to the given user."""
+    # 1. Check for Global Override (Superuser/Global setting)
+    global_setting = SystemSetting.objects.filter(key='auto_approve_enabled', department__isnull=True, value=True).exists()
+    if global_setting:
+        return True
+        
+    # Staff and Superusers always get auto-approved if global setting is ON (handled above)
+    # If they are staff, they don't need department-specific auto-approve usually, 
+    # but we'll allow it if their specific department has it ON.
+    
+    # 2. Check for Department-Specific setting
+    if user.department:
+        dept_setting = SystemSetting.objects.filter(key='auto_approve_enabled', department=user.department, value=True).exists()
+        if dept_setting:
+            return True
+            
+    return False
 
 
 # ── Decorators ────────────────────────────────────────────────
@@ -248,7 +269,13 @@ def dashboard_view(request):
     today = datetime.date.today()
     if request.user.can_manage_facilities():
         yesterday = timezone.now() - datetime.timedelta(hours=24)
-        for b in Booking.objects.filter(status='pending', created_at__lte=yesterday):
+        pending_bookings = Booking.objects.filter(status='pending', created_at__lte=yesterday)
+        if request.user.role == User.FACILITY_MANAGER:
+            pending_bookings = pending_bookings.filter(
+                Q(booked_by__role=User.STANDARD_USER, booked_by__department=request.user.department) |
+                ~Q(booked_by__role=User.STANDARD_USER)
+            )
+        for b in pending_bookings:
             if not Notification.objects.filter(booking=b, notif_type='escalation', recipient=request.user).exists():
                 Notification.objects.create(recipient=request.user, notif_type='escalation', title=f'Pending 24h: {b.facility.name}', message=f'Booking #{b.pk} by {b.booked_by.get_full_name() or b.booked_by.username} has been pending for over 24 hours.', booking=b)
     context = {
@@ -434,6 +461,10 @@ def bookings_view(request):
     if request.user.can_manage_facilities():
         bookings_qs = Booking.objects.filter(group__isnull=True).select_related('facility', 'booked_by')
         groups_qs = BookingGroup.objects.select_related('facility', 'booked_by')
+        if request.user.role == User.FACILITY_MANAGER:
+            dept_filter = Q(booked_by__role=User.STANDARD_USER, booked_by__department=request.user.department) | ~Q(booked_by__role=User.STANDARD_USER)
+            bookings_qs = bookings_qs.filter(dept_filter)
+            groups_qs = groups_qs.filter(dept_filter)
     else:
         bookings_qs = Booking.objects.filter(booked_by=request.user, group__isnull=True).select_related('facility')
         groups_qs = BookingGroup.objects.filter(booked_by=request.user).select_related('facility')
@@ -485,7 +516,11 @@ def bookings_view(request):
     approved = Booking.objects.filter(status='approved', group__isnull=True).count() + BookingGroup.objects.filter(status='approved').count() if request.user.can_manage_facilities() else Booking.objects.filter(booked_by=request.user, status='approved', group__isnull=True).count() + BookingGroup.objects.filter(booked_by=request.user, status='approved').count()
     stats = {'total': total, 'pending': pending, 'approved': approved, 'today': Booking.objects.filter(date=today).count()}
     
-    auto_approve, _ = SystemSetting.objects.get_or_create(key='auto_approve_enabled', defaults={'value': False})
+    # Fetch auto-approve setting based on role/department
+    if request.user.role == User.SUPERUSER_ROLE or request.user.is_superuser:
+        auto_approve, _ = SystemSetting.objects.get_or_create(key='auto_approve_enabled', department__isnull=True, defaults={'value': False})
+    else:
+        auto_approve, _ = SystemSetting.objects.get_or_create(key='auto_approve_enabled', department=request.user.department, defaults={'value': False})
     
     return render(request, 'bookings.html', {
         'bookings': combined_bookings, 
@@ -510,11 +545,20 @@ def toggle_auto_approve_view(request):
         try:
             data = json.loads(request.body)
             enabled = data.get('enabled', False)
-            setting, _ = SystemSetting.objects.get_or_create(key='auto_approve_enabled')
+            
+            # Independent toggles: 
+            # Superusers update the 'Global' (department=None) setting.
+            # Facility Managers update their specific department setting.
+            if request.user.role == User.SUPERUSER_ROLE or request.user.is_superuser:
+                setting, _ = SystemSetting.objects.get_or_create(key='auto_approve_enabled', department__isnull=True)
+            else:
+                setting, _ = SystemSetting.objects.get_or_create(key='auto_approve_enabled', department=request.user.department)
+                
             setting.value = enabled
             setting.updated_by = request.user
             setting.save()
-            log_activity(request.user, 'edit_user', f'Toggled Auto-Approve: {"ON" if enabled else "OFF"}', request)
+            
+            log_activity(request.user, 'edit_user', f'Toggled Auto-Approve: {"ON" if enabled else "OFF"} for {setting.department or "Global"}', request)
             return JsonResponse({'success': True, 'enabled': setting.value})
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
@@ -706,7 +750,7 @@ def booking_create_view(request):
                         return render(request, 'booking_form.html', {'facilities': facilities, 'has_conflict': True, 'conflict_info': all_conflicts, 'form_data': request.POST, 'preselect': facility_id, 'equipment_choices': EQUIPMENT_CHOICES, 'today': datetime.date.today().isoformat(), 'is_recurring': is_recurring})
                         
                     if is_recurring:
-                        auto_approve_setting = SystemSetting.objects.filter(key='auto_approve_enabled', value=True).exists()
+                        auto_approve_setting = is_auto_approve_enabled_for_user(request.user)
                         status = BookingGroup.APPROVED if auto_approve_setting else BookingGroup.PENDING
                         approved_by = request.user if auto_approve_setting else None
                         
@@ -726,12 +770,14 @@ def booking_create_view(request):
                             
                         if all_eq:
                             it_staff = User.objects.filter(role__in=[User.TECHNICAL_STAFF, User.FACILITY_MANAGER, User.SUPERUSER_ROLE])
+                            if request.user.role == User.STANDARD_USER:
+                                it_staff = it_staff.exclude(Q(role=User.FACILITY_MANAGER) & ~Q(department=request.user.department))
                             for staff in it_staff:
                                 Notification.objects.create(recipient=staff, notif_type='confirmation', title=f'Equipment Request: {facility.name} (Recurring)', message=f'{request.user.get_full_name() or request.user.username} needs: {all_eq}\nFor: {facility.name} recurring starting {start_date}', sent_by=request.user)
                         log_activity(request.user, 'book', f'Booked {facility.name} recurring starting {start_date} (Auto-Approved: {auto_approve_setting})', request)
                         messages.success(request, (f'Recurring booking auto-approved!' if auto_approve_setting else f'Recurring booking submitted!') + (f' Equipment request sent to IT Department.' if all_eq else ''))
                     else:
-                        auto_approve_setting = SystemSetting.objects.filter(key='auto_approve_enabled', value=True).exists()
+                        auto_approve_setting = is_auto_approve_enabled_for_user(request.user)
                         status = Booking.APPROVED if auto_approve_setting else Booking.PENDING
                         approved_by = request.user if auto_approve_setting else None
                         
@@ -744,6 +790,8 @@ def booking_create_view(request):
                             
                         if all_eq:
                             it_staff = User.objects.filter(role__in=[User.TECHNICAL_STAFF, User.FACILITY_MANAGER, User.SUPERUSER_ROLE])
+                            if request.user.role == User.STANDARD_USER:
+                                it_staff = it_staff.exclude(Q(role=User.FACILITY_MANAGER) & ~Q(department=request.user.department))
                             for staff in it_staff:
                                 Notification.objects.create(recipient=staff, notif_type='confirmation', title=f'Equipment Request: {facility.name}', message=f'{request.user.get_full_name() or request.user.username} needs: {all_eq}\nFor: {facility.name} on {dates_to_book[0]} at {start_time.strftime("%I:%M %p")}', booking=booking, sent_by=request.user)
                         log_activity(request.user, 'book', f'Booked {facility.name} on {dates_to_book[0]} (Auto-Approved: {auto_approve_setting})', request)
@@ -790,6 +838,12 @@ def booking_approve_view(request, pk):
             messages.error(request, 'Only Facility Managers can approve or reject bookings.')
             return redirect('booking_detail', pk=pk)
         
+        # Facility Managers can only approve/reject Standard Users from their own department
+        if request.user.role == User.FACILITY_MANAGER and booking.booked_by.role == User.STANDARD_USER:
+            if booking.booked_by.department != request.user.department:
+                messages.error(request, 'You can only approve or reject bookings from your own department.')
+                return redirect('booking_detail', pk=pk)
+        
         if action == 'approve':
             booking.status = Booking.APPROVED; booking.approved_by = request.user; booking.save()
             send_notification(booking.booked_by, 'approval', f'Booking Approved: {booking.facility.name}', '', booking=booking, sent_by=request.user)
@@ -831,6 +885,12 @@ def booking_group_action_view(request, pk):
         if not request.user.can_approve_bookings():
             messages.error(request, 'Only Facility Managers can approve or reject bookings.')
             return redirect('bookings')
+        
+        # Facility Managers can only approve/reject Standard Users from their own department
+        if request.user.role == User.FACILITY_MANAGER and group.booked_by.role == User.STANDARD_USER:
+            if group.booked_by.department != request.user.department:
+                messages.error(request, 'You can only approve or reject bookings from your own department.')
+                return redirect('bookings')
         
         if action == 'approve':
             group.status = BookingGroup.APPROVED; group.approved_by = request.user; group.save()
@@ -1021,6 +1081,8 @@ def booking_request_change_view(request, pk):
     )
 
     it_staff = User.objects.filter(role__in=[User.TECHNICAL_STAFF, User.FACILITY_MANAGER, User.SUPERUSER_ROLE])
+    if request.user.role == User.STANDARD_USER:
+        it_staff = it_staff.exclude(Q(role=User.FACILITY_MANAGER) & ~Q(department=request.user.department))
     notif_title = f'[ROOM CHANGE] Request for Booking #{booking.pk}'
     notif_msg = f"{request.user.get_full_name() or request.user.username} requested a room change for their booking at {booking.facility.name}.\nReason: {reason}"
     if preferred_fac:
@@ -1045,11 +1107,13 @@ def booking_request_change_view(request, pk):
 
 @login_required(login_url='login')
 def issue_list_view(request):
-    from django.db.models import Count, Q
     status_filter = request.GET.get('status', '')
     priority_filter = request.GET.get('priority', '')
     if request.user.is_it_staff():
         issues = IssueReport.objects.select_related('facility', 'reported_by').all()
+        if request.user.role == User.FACILITY_MANAGER:
+            dept_filter = Q(reported_by__role=User.STANDARD_USER, reported_by__department=request.user.department) | ~Q(reported_by__role=User.STANDARD_USER)
+            issues = issues.filter(dept_filter)
     else:
         issues = IssueReport.objects.filter(reported_by=request.user).select_related('facility')
 
@@ -1142,6 +1206,8 @@ def issue_report_create_view(request):
 
         # Notify IT staff
         it_staff = User.objects.filter(role__in=[User.TECHNICAL_STAFF, User.FACILITY_MANAGER, User.SUPERUSER_ROLE])
+        if request.user.role == User.STANDARD_USER:
+            it_staff = it_staff.exclude(Q(role=User.FACILITY_MANAGER) & ~Q(department=request.user.department))
         notif_title = f'[{issue.get_priority_display().upper()}] Issue: {issue.title}'
         notif_msg = f'{request.user.get_full_name() or request.user.username} reported: {issue.description[:150]}'
         if issue.requesting_room_change:
@@ -1354,9 +1420,12 @@ def settings_view(request):
         action = request.POST.get('action')
         
         if action == 'update_profile':
-            request.user.department = request.POST.get('department', request.user.department)
-            request.user.save()
-            messages.success(request, 'Profile updated.')
+            if request.user.role != User.STANDARD_USER:
+                request.user.department = request.POST.get('department', request.user.department)
+                request.user.save()
+                messages.success(request, 'Profile updated.')
+            else:
+                messages.error(request, 'You do not have permission to change your department.')
             
         elif action == 'change_name':
             request.user.first_name = request.POST.get('first_name', '').strip()
@@ -1454,6 +1523,8 @@ def settings_view(request):
 def notifications_view(request):
     filter_type = request.GET.get('type', '')
     notifs = request.user.notifications.all()
+    if request.user.role == User.FACILITY_MANAGER:
+        notifs = notifs.exclude(Q(sent_by__role=User.STANDARD_USER) & ~Q(sent_by__department=request.user.department))
     if filter_type: notifs = notifs.filter(notif_type=filter_type)
     
     paginator = Paginator(notifs, 20)

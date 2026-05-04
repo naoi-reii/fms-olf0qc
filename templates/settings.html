@@ -113,13 +113,15 @@
           <div class="setting-info">
             <div class="setting-label">Department</div>
             <div class="setting-desc">Select your primary department</div>
-            <select name="department" class="form-control" style="max-width: 300px; margin-top: 8px;">
+            <select name="department" class="form-control" style="max-width: 300px; margin-top: 8px;" {% if user.role == 'standard_user' %}disabled{% endif %}>
               {% for val, label in dept_choices %}
                 <option value="{{ val }}" {% if user.department == val %}selected{% endif %}>{{ label }}</option>
               {% endfor %}
             </select>
           </div>
+          {% if user.role != 'standard_user' %}
           <button type="submit" class="btn btn-primary btn-sm">Update Changes</button>
+          {% endif %}
         </div>
       </form>
     </div>

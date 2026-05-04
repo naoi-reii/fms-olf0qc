@@ -314,10 +314,14 @@ class ActivityLog(models.Model):
 
 
 class SystemSetting(models.Model):
-    key = models.CharField(max_length=50, unique=True)
+    key = models.CharField(max_length=100, unique=False)
     value = models.BooleanField(default=False)
+    department = models.CharField(max_length=20, choices=User.DEPARTMENT_CHOICES, null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
 
+    class Meta:
+        unique_together = ('key', 'department')
+
     def __str__(self):
-        return f"{self.key}: {self.value}"
+        return f"{self.key} ({self.department or 'Global'}): {self.value}"
