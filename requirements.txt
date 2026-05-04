@@ -6,3 +6,5 @@ python-dotenv
 django-storages
 boto3
 django-allauth[socialaccount]
+gunicorn
+whitenoise
