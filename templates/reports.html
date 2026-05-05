@@ -216,7 +216,7 @@
           <td style="padding:11px 14px;border-bottom:1px solid var(--border);font-weight:500;">{{ f.name }}</td>
           <td style="padding:11px 14px;border-bottom:1px solid var(--border);color:var(--muted);">{{ f.floor|default:"—" }}</td>
           <td style="padding:11px 14px;border-bottom:1px solid var(--border);color:var(--muted);">{{ f.facility_type|title }}</td>
-          <td style="padding:11px 14px;border-bottom:1px solid var(--border);"><span class="status active">Active</span></td>
+          <td style="padding:11px 14px;border-bottom:1px solid var(--border);"><span class="status {{ f.status }}">{% if f.status == 'active' %}Active{% elif f.status == 'maintenance' %}Under Maintenance{% elif f.status == 'unavailable' %}Unavailable{% else %}{{ f.status|title }}{% endif %}</span></td>
           <td style="padding:11px 14px;border-bottom:1px solid var(--border);font-weight:600;">{{ f.total }}</td>
           <td style="padding:11px 14px;border-bottom:1px solid var(--border);color:var(--green);font-weight:600;">{{ f.approved_count }}</td>
         </tr>

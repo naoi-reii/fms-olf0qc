@@ -1656,7 +1656,7 @@ def reports_view(request):
     if floor_filter: bqs = bqs.filter(facility__floor=floor_filter)
     total = bqs.count(); approved = bqs.filter(status='approved').count(); pending = bqs.filter(status='pending').count(); rejected = bqs.filter(status='rejected').count(); cancelled = bqs.filter(status='cancelled').count()
     approval_rate = round((approved / total * 100) if total else 0)
-    facility_usage = list(Facility.objects.annotate(total=Count('bookings', filter=Q(bookings__date__gte=date_from, bookings__date__lte=date_to)), approved_count=Count('bookings', filter=Q(bookings__status='approved', bookings__date__gte=date_from, bookings__date__lte=date_to))).filter(total__gt=0).order_by('-total').values('name', 'floor', 'facility_type', 'total', 'approved_count')[:10])
+    facility_usage = list(Facility.objects.annotate(total=Count('bookings', filter=Q(bookings__date__gte=date_from, bookings__date__lte=date_to)), approved_count=Count('bookings', filter=Q(bookings__status='approved', bookings__date__gte=date_from, bookings__date__lte=date_to))).filter(total__gt=0).order_by('-total').values('name', 'floor', 'facility_type', 'status', 'total', 'approved_count')[:10])
     daily_labels, daily_data = [], []
     for i in range(13, -1, -1):
         d = today - datetime.timedelta(days=i); daily_labels.append(d.strftime('%b %d')); daily_data.append(Booking.objects.filter(date=d).count())
