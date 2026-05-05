@@ -1652,19 +1652,39 @@ def reports_view(request):
     date_from = datetime.date.fromisoformat(date_from_str) if date_from_str else thirty_days_ago
     date_to = datetime.date.fromisoformat(date_to_str) if date_to_str else today
     bqs = Booking.objects.filter(date__gte=date_from, date__lte=date_to)
-    if facility_type_filter: bqs = bqs.filter(facility__facility_type=facility_type_filter)
-    if floor_filter: bqs = bqs.filter(facility__floor=floor_filter)
+    facs_qs = Facility.objects.all()
+    if facility_type_filter: 
+        bqs = bqs.filter(facility__facility_type=facility_type_filter)
+        facs_qs = facs_qs.filter(facility_type=facility_type_filter)
+    if floor_filter: 
+        bqs = bqs.filter(facility__floor=floor_filter)
+        facs_qs = facs_qs.filter(floor=floor_filter)
+    
     total = bqs.count(); approved = bqs.filter(status='approved').count(); pending = bqs.filter(status='pending').count(); rejected = bqs.filter(status='rejected').count(); cancelled = bqs.filter(status='cancelled').count()
     approval_rate = round((approved / total * 100) if total else 0)
-    facility_usage = list(Facility.objects.annotate(total=Count('bookings', filter=Q(bookings__date__gte=date_from, bookings__date__lte=date_to)), approved_count=Count('bookings', filter=Q(bookings__status='approved', bookings__date__gte=date_from, bookings__date__lte=date_to))).filter(total__gt=0).order_by('-total').values('name', 'floor', 'facility_type', 'status', 'total', 'approved_count')[:10])
+    
+    # Facility usage table - only show facilities that match the filters
+    facility_usage = list(facs_qs.annotate(
+        total=Count('bookings', filter=Q(bookings__date__gte=date_from, bookings__date__lte=date_to)), 
+        approved_count=Count('bookings', filter=Q(bookings__status='approved', bookings__date__gte=date_from, bookings__date__lte=date_to))
+    ).filter(total__gt=0).order_by('-total').values('name', 'floor', 'facility_type', 'status', 'total', 'approved_count')[:10])
+    
     daily_labels, daily_data = [], []
     for i in range(13, -1, -1):
-        d = today - datetime.timedelta(days=i); daily_labels.append(d.strftime('%b %d')); daily_data.append(Booking.objects.filter(date=d).count())
-    hour_data = [Booking.objects.filter(start_time__gte=datetime.time(h,0), start_time__lte=datetime.time(h,59), status__in=['approved','pending']).count() for h in range(7, 21)]
-    type_data = list(Booking.objects.filter(date__gte=date_from, date__lte=date_to).values('facility__facility_type').annotate(count=Count('id')).order_by('-count'))
-    floor_data = list(Booking.objects.filter(date__gte=date_from, date__lte=date_to).values('facility__floor').annotate(count=Count('id')).order_by('facility__floor'))
-    top_bookers = list(Booking.objects.filter(date__gte=date_from, date__lte=date_to).values('booked_by__first_name','booked_by__last_name','booked_by__username','booked_by__role').annotate(count=Count('id')).order_by('-count')[:5])
-    context = {'date_from': date_from.isoformat(), 'date_to': date_to.isoformat(), 'facility_type_filter': facility_type_filter, 'floor_filter': floor_filter, 'floor_choices': Facility.FLOOR_CHOICES, 'type_choices': Facility.TYPE_CHOICES, 'total_bookings': total, 'approved': approved, 'pending': pending, 'rejected': rejected, 'cancelled': cancelled, 'approval_rate': approval_rate, 'total_facilities': Facility.objects.count(), 'active_facilities': Facility.objects.filter(status='active').count(), 'maintenance_facilities': Facility.objects.filter(status='maintenance').count(), 'total_users': User.objects.count(), 'status_chart_json': json.dumps({'labels': ['Approved','Pending','Rejected','Cancelled'], 'data': [approved,pending,rejected,cancelled], 'colors': ['#1a6b3a','#b7770d','#c0392b','#888780']}), 'daily_labels_json': json.dumps(daily_labels), 'daily_data_json': json.dumps(daily_data), 'hour_labels_json': json.dumps([f'{h}:00' for h in range(7,21)]), 'hour_data_json': json.dumps(hour_data), 'type_chart_json': json.dumps({'labels': [t['facility__facility_type'].replace('_',' ').title() for t in type_data], 'data': [t['count'] for t in type_data]}), 'floor_chart_json': json.dumps({'labels': [f['facility__floor'] or 'Unknown' for f in floor_data], 'data': [f['count'] for f in floor_data]}), 'facility_usage': facility_usage, 'top_bookers': top_bookers}
+        d = today - datetime.timedelta(days=i)
+        daily_labels.append(d.strftime('%b %d'))
+        # Daily counts should also respect the filters
+        daily_qs = Booking.objects.filter(date=d)
+        if facility_type_filter: daily_qs = daily_qs.filter(facility__facility_type=facility_type_filter)
+        if floor_filter: daily_qs = daily_qs.filter(facility__floor=floor_filter)
+        daily_data.append(daily_qs.count())
+
+    hour_data = [bqs.filter(start_time__gte=datetime.time(h,0), start_time__lte=datetime.time(h,59), status__in=['approved','pending']).count() for h in range(7, 21)]
+    type_data = list(bqs.values('facility__facility_type').annotate(count=Count('id')).order_by('-count'))
+    floor_data = list(bqs.values('facility__floor').annotate(count=Count('id')).order_by('facility__floor'))
+    top_bookers = list(bqs.values('booked_by__first_name','booked_by__last_name','booked_by__username','booked_by__role').annotate(count=Count('id')).order_by('-count')[:5])
+    
+    context = {'date_from': date_from.isoformat(), 'date_to': date_to.isoformat(), 'facility_type_filter': facility_type_filter, 'floor_filter': floor_filter, 'floor_choices': Facility.FLOOR_CHOICES, 'type_choices': Facility.TYPE_CHOICES, 'total_bookings': total, 'approved': approved, 'pending': pending, 'rejected': rejected, 'cancelled': cancelled, 'approval_rate': approval_rate, 'total_facilities': facs_qs.count(), 'active_facilities': facs_qs.filter(status='active').count(), 'maintenance_facilities': facs_qs.filter(status='maintenance').count(), 'total_users': User.objects.count(), 'status_chart_json': json.dumps({'labels': ['Approved','Pending','Rejected','Cancelled'], 'data': [approved,pending,rejected,cancelled], 'colors': ['#1a6b3a','#b7770d','#c0392b','#888780']}), 'daily_labels_json': json.dumps(daily_labels), 'daily_data_json': json.dumps(daily_data), 'hour_labels_json': json.dumps([f'{h}:00' for h in range(7,21)]), 'hour_data_json': json.dumps(hour_data), 'type_chart_json': json.dumps({'labels': [t['facility__facility_type'].replace('_',' ').title() for t in type_data], 'data': [t['count'] for t in type_data]}), 'floor_chart_json': json.dumps({'labels': [f['facility__floor'] or 'Unknown' for f in floor_data], 'data': [f['count'] for f in floor_data]}), 'facility_usage': facility_usage, 'top_bookers': top_bookers}
     return render(request, 'reports.html', context)
 
 
@@ -1672,10 +1692,19 @@ def reports_view(request):
 @reports_required
 def reports_export_csv(request):
     date_from_str = request.GET.get('date_from', ''); date_to_str = request.GET.get('date_to', '')
+    facility_type_filter = request.GET.get('facility_type', '')
+    floor_filter = request.GET.get('floor', '')
+    
     today = datetime.date.today()
     date_from = datetime.date.fromisoformat(date_from_str) if date_from_str else today - datetime.timedelta(days=30)
     date_to = datetime.date.fromisoformat(date_to_str) if date_to_str else today
-    bookings = Booking.objects.filter(date__gte=date_from, date__lte=date_to).select_related('facility', 'booked_by', 'approved_by').order_by('date', 'start_time')
+    
+    bookings = Booking.objects.filter(date__gte=date_from, date__lte=date_to).select_related('facility', 'booked_by', 'approved_by')
+    if facility_type_filter: bookings = bookings.filter(facility__facility_type=facility_type_filter)
+    if floor_filter: bookings = bookings.filter(facility__floor=floor_filter)
+    
+    bookings = bookings.order_by('date', 'start_time')
+    
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = f'attachment; filename="bookings_{date_from}_{date_to}.csv"'
     writer = csv.writer(response)
