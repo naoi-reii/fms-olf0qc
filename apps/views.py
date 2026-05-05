@@ -1507,7 +1507,7 @@ def settings_view(request):
             
         elif action == 'delete_account':
             confirmation = request.POST.get('confirmation', '').strip()
-            if confirmation == "Yes, i want to delete my account":
+            if confirmation.lower() == "yes, i want to delete my account":
                 user_pk = request.user.pk
                 username = request.user.username
                 logout(request)

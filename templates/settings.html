@@ -336,7 +336,7 @@
       {% csrf_token %}
       <input type="hidden" name="action" value="delete_account">
       <div class="form-group">
-        <label class="form-label">Type "Yes, i want to delete my account" to confirm</label>
+        <label class="form-label">Type "Yes, I want to delete my account" to confirm</label>
         <input type="text" id="deleteConfirmInput" name="confirmation" class="form-control" required autocomplete="off">
       </div>
       <div style="display: flex; gap: 10px; justify-content: flex-end;">
@@ -405,10 +405,10 @@
   // Delete confirmation logic
   const deleteInput = document.getElementById('deleteConfirmInput');
   const deleteBtn = document.getElementById('deleteSubmitBtn');
-  const targetPhrase = "Yes, i want to delete my account";
+  const targetPhrase = "Yes, I want to delete my account";
 
   deleteInput.addEventListener('input', function() {
-    if (this.value === targetPhrase) {
+    if (this.value.trim().toLowerCase() === targetPhrase.toLowerCase()) {
       deleteBtn.disabled = false;
     } else {
       deleteBtn.disabled = true;
